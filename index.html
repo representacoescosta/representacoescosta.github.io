@@ -114,6 +114,13 @@ section h2{font-size:clamp(1.9rem,4vw,2.7rem);color:var(--cinza);margin:6px 0 14
 .contatos .v{font-weight:800;overflow-wrap:anywhere}
 .contatos a.v{text-decoration:none}
 
+/* instagram */
+.ig-bloco{margin-top:30px}
+.ig-tit{font-size:1.2rem;color:var(--tinta);margin-bottom:14px}
+.ig-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;align-items:start}
+.ig-grade .instagram-media{min-width:0!important;width:100%!important;margin:0!important}
+[hidden]{display:none!important}
+
 footer{background:var(--cinza);color:#fff;font-size:.9rem}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) footer{background:#111}}
 footer .wrap{padding-block:22px;display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between;font-weight:600}
@@ -142,6 +149,7 @@ footer .wrap{padding-block:22px;display:flex;flex-wrap:wrap;gap:8px 24px;justify
       <a href="#representadas">Representadas</a>
       <a href="#produtos">Produtos</a>
       <a href="#historia">Nossa história</a>
+      <a href="#instagram" id="menu-ig" hidden>Instagram</a>
       <a href="#contato">Contato</a>
     </nav>
   </div>
@@ -216,7 +224,23 @@ footer .wrap{padding-block:22px;display:flex;flex-wrap:wrap;gap:8px 24px;justify
     </div>
   </section>
 
-  <section id="contato" class="cinza">
+  <section id="instagram" class="cinza" hidden>
+    <div class="wrap">
+      <div class="olho">Instagram</div>
+      <h2>Acompanhe no Instagram</h2>
+      <p class="lead">Novidades, lançamentos e o dia a dia das nossas representadas. Siga <a href="https://www.instagram.com/representacoescostarj/" target="_blank" rel="noopener" style="color:var(--laranja);font-weight:800;text-decoration:none">@representacoescostarj</a>.</p>
+      <div id="ig-feed" class="ig-bloco" hidden>
+        <h3 class="ig-tit">Últimos posts</h3>
+        <div id="ig-feed-alvo"></div>
+      </div>
+      <div id="ig-destaques" class="ig-bloco" hidden>
+        <h3 class="ig-tit">Destaques que recomendamos</h3>
+        <div class="ig-grade" id="ig-grade"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="contato">
     <div class="wrap">
       <div class="olho">Contato</div>
       <h2>Fale com a gente</h2>
@@ -287,9 +311,43 @@ const LINHAS = [
   ]}
 ];
 
+const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ===== INSTAGRAM =====
+   1) Feed automático: cole em BEHOLD_FEED_ID o "Feed ID" gerado em behold.so depois de conectar o @representacoescostarj.
+   2) Destaques escolhidos: cole em DESTAQUES os links dos posts (ex.: "https://www.instagram.com/p/XXXX/").
+   Enquanto os dois estiverem vazios, a seção fica escondida. */
+const BEHOLD_FEED_ID = "";
+const DESTAQUES = [];
+
+(function instagram(){
+  const temFeed = !!BEHOLD_FEED_ID, temDest = DESTAQUES.length > 0;
+  if (!temFeed && !temDest) return;
+  document.getElementById("instagram").hidden = false;
+  document.getElementById("menu-ig").hidden = false;
+  if (temFeed) {
+    document.getElementById("ig-feed").hidden = false;
+    const w = document.createElement("behold-widget");
+    w.setAttribute("feed-id", BEHOLD_FEED_ID);
+    document.getElementById("ig-feed-alvo").appendChild(w);
+    const s = document.createElement("script");
+    s.type = "module"; s.src = "https://w.behold.so/widget.js";
+    document.head.appendChild(s);
+  }
+  if (temDest) {
+    document.getElementById("ig-destaques").hidden = false;
+    document.getElementById("ig-grade").innerHTML = DESTAQUES.map(u => {
+      const link = u.split("?")[0].replace(/\/?$/, "/");
+      return `<blockquote class="instagram-media" data-instgrm-permalink="${esc(link)}?utm_source=ig_embed" data-instgrm-version="14"><a href="${esc(link)}" target="_blank" rel="noopener">Ver no Instagram</a></blockquote>`;
+    }).join("");
+    const s = document.createElement("script");
+    s.async = true; s.src = "https://www.instagram.com/embed.js";
+    document.body.appendChild(s);
+  }
+})();
+
 const abas = document.querySelector(".abas");
 const grade = document.getElementById("grade");
-const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 function mostrar(id){
   const linha = LINHAS.find(l => l.id === id);
