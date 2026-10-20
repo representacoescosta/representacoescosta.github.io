@@ -114,6 +114,10 @@ section h2{font-size:clamp(1.9rem,4vw,2.7rem);color:var(--cinza);margin:6px 0 14
 .contatos .v{font-weight:800;overflow-wrap:anywhere}
 .contatos a.v{text-decoration:none}
 
+/* vídeo */
+.video{margin-top:24px;max-width:860px;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:#000;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.video iframe{width:100%;height:100%;border:0;display:block}
+
 /* instagram */
 .ig-bloco{margin-top:30px}
 .ig-tit{font-size:1.2rem;color:var(--tinta);margin-bottom:14px}
@@ -149,6 +153,7 @@ footer .wrap{padding-block:22px;display:flex;flex-wrap:wrap;gap:8px 24px;justify
       <a href="#representadas">Representadas</a>
       <a href="#produtos">Produtos</a>
       <a href="#historia">Nossa história</a>
+      <a href="#video">Vídeo</a>
       <a href="#instagram" id="menu-ig" hidden>Instagram</a>
       <a href="#contato">Contato</a>
     </nav>
@@ -224,7 +229,19 @@ footer .wrap{padding-block:22px;display:flex;flex-wrap:wrap;gap:8px 24px;justify
     </div>
   </section>
 
-  <section id="instagram" class="cinza" hidden>
+  <section id="video" class="cinza">
+    <div class="wrap">
+      <div class="olho">Vídeo</div>
+      <h2>Requeijão em teste</h2>
+      <p class="lead">Teste de 8 marcas de requeijão cremoso feito pelo canal Marcela Venancio, no YouTube.</p>
+      <div class="video">
+        <iframe src="https://www.youtube-nocookie.com/embed/sNM07noUAVo" title="Teste de 8 marcas de requeijão cremoso — canal Marcela Venancio" loading="lazy" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+      </div>
+      <p class="nota">Vídeo de <a href="https://www.youtube.com/watch?v=sNM07noUAVo" target="_blank" rel="noopener">Marcela Venancio no YouTube</a>.</p>
+    </div>
+  </section>
+
+  <section id="instagram" hidden>
     <div class="wrap">
       <div class="olho">Instagram</div>
       <h2>Acompanhe no Instagram</h2>
@@ -240,7 +257,7 @@ footer .wrap{padding-block:22px;display:flex;flex-wrap:wrap;gap:8px 24px;justify
     </div>
   </section>
 
-  <section id="contato">
+  <section id="contato" class="cinza">
     <div class="wrap">
       <div class="olho">Contato</div>
       <h2>Fale com a gente</h2>
