@@ -46,6 +46,10 @@ h1,h2,h3{line-height:1.1;margin:0;text-wrap:balance;font-weight:900}
 .menu{display:flex;gap:22px;font-weight:800;font-size:.95rem}
 .menu a{text-decoration:none;color:var(--cinza)}
 .menu a:hover,.menu a:focus-visible{color:var(--laranja)}
+/* botão de acesso da equipe (App RC no computador) */
+.area{flex:none;display:inline-flex;align-items:center;gap:6px;font-weight:900;font-size:.9rem;text-decoration:none;color:#fff;background:var(--laranja);border-radius:999px;padding:8px 16px}
+.area:hover,.area:focus-visible{background:var(--laranja-esc)}
+.area:focus-visible{outline:3px solid var(--laranja);outline-offset:3px}
 
 /* destaque */
 .destaque{background:var(--laranja);color:#fff;position:relative;overflow:hidden}
@@ -157,6 +161,7 @@ footer .wrap{padding-block:22px;display:flex;flex-wrap:wrap;gap:8px 24px;justify
       <a href="#instagram" id="menu-ig" hidden>Instagram</a>
       <a href="#contato">Contato</a>
     </nav>
+    <a class="area" href="app/" title="Acesso da equipe: mesmo usuário e senha do App RC">Área RC</a>
   </div>
 </header>
 

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Área RC · Representações Costa</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#FE5000">
+<link rel="icon" href="../img/logo-rc.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap">
+<style>
+/* Área RC: o App RC (metas, faturamento, pedidos, tabela de preços) dentro do site.
+   O login é o do próprio app: o mesmo nome e a mesma senha de 8 números do celular. */
+:root{
+  --laranja:#FE5000; --laranja-esc:#D94400; --cinza:#666666;
+  --tinta:#2B2B2B; --fundo:#F4F3F2; --sup:#FFFFFF;
+  --fonte:"Nunito","Arial Rounded MT Bold","Segoe UI",Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --fundo:#141312; --sup:#242424; --tinta:#F2F2F2; --cinza:#B3B3B3; color-scheme:dark}}
+:root[data-theme="dark"]{--fundo:#141312; --sup:#242424; --tinta:#F2F2F2; --cinza:#B3B3B3; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--fundo);color:var(--tinta);font-family:var(--fonte);display:flex;flex-direction:column}
+.topo{flex:none;background:var(--sup);border-bottom:3px solid var(--laranja)}
+.topo .in{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:8px 16px}
+.marca{display:flex;align-items:center;gap:10px;text-decoration:none;min-width:0}
+.marca img{height:32px;width:auto;flex:none}
+.marca b{font-size:1.05rem;font-weight:900;color:var(--cinza);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.marca b span{color:var(--laranja)}
+.cresce{flex:1}
+.lk{font-weight:800;font-size:.9rem;color:var(--cinza);text-decoration:none;white-space:nowrap}
+.lk:hover,.lk:focus-visible{color:var(--laranja)}
+.palco{flex:1;min-height:0;position:relative}
+.palco iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--fundo)}
+.aviso{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--cinza);font-weight:700}
+@media (max-width:520px){.lk.site{display:none}}
+</style>
+</head>
+<body>
+<header class="topo">
+  <div class="in">
+    <a class="marca" href="./" aria-label="Área RC, início">
+      <img src="../img/logo-rc.png" alt="(RC)" width="81" height="32">
+      <b>Representações Costa · <span>Área RC</span></b>
+    </a>
+    <div class="cresce"></div>
+    <a class="lk novo" id="novaAba" href="#" target="_blank" rel="noopener">Abrir em tela cheia</a>
+    <a class="lk site" href="../">Voltar ao site</a>
+  </div>
+</header>
+<main class="palco">
+  <div class="aviso" id="aviso">Carregando o App RC…</div>
+  <iframe id="app" title="App RC" allow="camera; clipboard-write" referrerpolicy="no-referrer-when-downgrade"></iframe>
+</main>
+<script>
+(function(){
+  /* Link oficial do App RC (Apps Script). Ao publicar nova versão no mesmo link, não precisa mudar nada aqui. */
+  var APP = "https://script.google.com/macros/s/AKfycbzFPXp5s-U3uFUNDkOudNS4dbjhAe2RF_G6SWODgTb1YdYqE1xDcI6s9fQh1EtT4bc5mQ/exec";
+  /* Repassa o que vier no endereço (?pagina=pedido&t=... ou ?painel=geral) e avisa o app que está no site. */
+  var q = new URLSearchParams(location.search), p = new URLSearchParams();
+  ["pagina", "t", "painel"].forEach(function(k){ var v = q.get(k); if (v) p.set(k, v); });
+  p.set("site", "1");
+  var src = APP + "?" + p.toString();
+  var f = document.getElementById("app");
+  f.addEventListener("load", function(){ var a = document.getElementById("aviso"); if (a) a.remove(); });
+  f.src = src;
+  var n = new URLSearchParams(p); n.delete("site");
+  document.getElementById("novaAba").href = APP + (n.toString() ? "?" + n.toString() : "");
+  if (q.get("pagina") === "pedido") document.title = "Pedido · Área RC";
+})();
+</script>
+</body>
+</html>
