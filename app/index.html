@@ -58,7 +58,7 @@ body{background:var(--fundo);color:var(--tinta);font-family:var(--fonte);display
 <script>
 (function(){
   /* Link oficial do App RC (Apps Script). Ao publicar nova versão no mesmo link, não precisa mudar nada aqui. */
-  var APP = "https://script.google.com/macros/s/AKfycbzFPXp5s-U3uFUNDkOudNS4dbjhAe2RF_G6SWODgTb1YdYqE1xDcI6s9fQh1EtT4bc5mQ/exec";
+  var APP = "https://script.google.com/macros/s/AKfycbzFPXp5s-U3uFUNDkOudNS4dbjhAe2RF_G65WODgTb1YdYqE1xDcI6s9fQh1EtT4bc5mQ/exec";
   /* Repassa o que vier no endereço (?pagina=pedido&t=... ou ?painel=geral) e avisa o app que está no site. */
   var q = new URLSearchParams(location.search), p = new URLSearchParams();
   ["pagina", "t", "painel"].forEach(function(k){ var v = q.get(k); if (v) p.set(k, v); });
