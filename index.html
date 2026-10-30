@@ -143,6 +143,7 @@ footer .wrap{padding-block:22px;display:flex;flex-wrap:wrap;gap:8px 24px;justify
 }
 @media (max-width:600px){.repres{grid-template-columns:1fr}.grade{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+img.foto-web{width:100%;aspect-ratio:4/3;height:auto;object-fit:cover;object-position:center}
 .creditos{max-width:1180px;margin:8px auto 0;padding:0 16px;font-size:.75rem;opacity:.75}.creditos summary{cursor:pointer}.creditos ul{margin:4px 0;padding-left:18px}.creditos a{color:inherit}
 </style>
 </head>
@@ -385,7 +386,7 @@ function mostrar(id){
   grade.innerHTML = linha.itens.map(p => `
     <article class="prod">
       <figure>
-        <img src="${/^https?:/.test(p.foto)?p.foto:"img/produtos/"+p.foto}" referrerpolicy="no-referrer" alt="${esc(p.n)}" loading="lazy" onerror="this.parentNode.classList.add('vazia')">
+        <img src="${/^https?:/.test(p.foto)?p.foto:"img/produtos/"+p.foto}" class="${/^https?:/.test(p.foto)?"foto-web":""}" referrerpolicy="no-referrer" alt="${esc(p.n)}" loading="lazy" onerror="this.parentNode.classList.add('vazia')">
         <div class="sem">${esc(p.n)}<small>${esc(linha.marca)}</small></div>
       </figure>
       <div class="info">
