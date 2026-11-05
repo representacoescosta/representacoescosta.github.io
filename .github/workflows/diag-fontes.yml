@@ -1,0 +1,12 @@
+name: diag fontes (temporario)
+on: workflow_dispatch
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for u in https://servicodados.ibge.gov.br/api/v1/localidades/estados https://geoftp.ibge.gov.br/organizacao_do_territorio/estrutura_territorial/divisao_territorial/ https://ftp.ibge.gov.br/ https://concla.ibge.gov.br/ https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj/ https://brasilapi.com.br/api/ibge/uf/v1 https://raw.githubusercontent.com/kelvins/municipios-brasileiros/main/csv/municipios.csv; do
+            echo "$u -> $(curl -s -o /dev/null -w '%{http_code} %{time_total}s %{size_download}B' --max-time 30 "$u")"
+          done
+          curl -s --max-time 30 https://geoftp.ibge.gov.br/organizacao_do_territorio/estrutura_territorial/divisao_territorial/ | grep -o 'href="[^"]*"' | tail -5
+          curl -s --max-time 30 https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj/ | grep -o 'href="[^"]*"' | tail -3
