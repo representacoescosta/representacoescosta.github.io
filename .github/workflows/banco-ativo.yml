@@ -1,0 +1,38 @@
+# Mantém o banco do sistema RC (Supabase, plano gratuito) ativo.
+# O plano gratuito pausa o banco depois de 7 dias sem uso. Esta rotina chama, uma vez por dia,
+# a função public.manter_ativo(), que só atualiza a linha rc.batimento e responde "ok".
+# A chave abaixo é a chave PUBLICÁVEL do Supabase (feita para ficar em sites e apps):
+# com ela não se lê nem se grava nenhuma tabela do sistema.
+# É a segunda rotina de segurança: a primeira roda no RC Rotinas (Apps Script) a cada 4 dias.
+name: Banco RC ativo
+
+on:
+  schedule:
+    - cron: "17 9 * * *"   # todo dia, 06:17 em Brasília
+  workflow_dispatch: {}
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  manter-ativo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Chamar manter_ativo
+        env:
+          SUPABASE_URL: https://fufwenjnnsvxdgnenpch.supabase.co
+          SUPABASE_PUB: sb_publishable_pHINurqjmY4eYnwKeh0_6A_MqTgVP16
+        run: |
+          resp=$(curl -sS --max-time 30 -w ' HTTP%{http_code}' -X POST \
+            -H "apikey: $SUPABASE_PUB" -H "Content-Type: application/json" \
+            -d '{}' "$SUPABASE_URL/rest/v1/rpc/manter_ativo")
+          echo "Resposta: $resp"
+          case "$resp" in *'"ok"'*HTTP200) echo "Banco ativo." ;; *) echo "::error::Banco não respondeu ok. Se pausou: supabase.com > rc-sistema > Restore project."; exit 1 ;; esac
+      # O GitHub desliga rotinas agendadas de repositórios sem movimento por 60 dias.
+      # Reativar a própria rotina todo dia mantém o agendamento ligado.
+      - name: Manter o agendamento ligado
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/banco-ativo.yml/enable" || true
