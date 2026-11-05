@@ -5,8 +5,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          for u in https://servicodados.ibge.gov.br/api/v1/localidades/estados https://geoftp.ibge.gov.br/organizacao_do_territorio/estrutura_territorial/divisao_territorial/ https://ftp.ibge.gov.br/ https://concla.ibge.gov.br/ https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj/ https://brasilapi.com.br/api/ibge/uf/v1 https://raw.githubusercontent.com/kelvins/municipios-brasileiros/main/csv/municipios.csv; do
-            echo "$u -> $(curl -s -o /dev/null -w '%{http_code} %{time_total}s %{size_download}B' --max-time 30 "$u")"
-          done
-          curl -s --max-time 30 https://geoftp.ibge.gov.br/organizacao_do_territorio/estrutura_territorial/divisao_territorial/ | grep -o 'href="[^"]*"' | tail -5
-          curl -s --max-time 30 https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj/ | grep -o 'href="[^"]*"' | tail -3
+          UA="Mozilla/5.0"
+          echo "== DTB"; curl -s -A "$UA" --max-time 30 https://geoftp.ibge.gov.br/organizacao_do_territorio/estrutura_territorial/divisao_territorial/ | grep -oE 'href="[0-9]{4}/?"' | tail -3
+          curl -s -A "$UA" --max-time 30 https://geoftp.ibge.gov.br/organizacao_do_territorio/estrutura_territorial/divisao_territorial/2024/ | grep -oE 'href="[^"]+"' | grep -vi 'facebook|insta|tiktok|twitter|youtube' | tail -8
+          echo "== CONCLA"; for u in https://concla.ibge.gov.br/images/concla/documentacao/CNAE_Subclasses_2_3_Estrutura_Detalhada.xlsx https://concla.ibge.gov.br/images/concla/downloads/revisao2007/PropCNAE20/CNAE20_Subclasses_EstruturaDetalhada.xls; do echo "$u -> $(curl -s -A "$UA" -o /dev/null -w '%{http_code} %{size_download}B' --max-time 30 "$u")"; done
+          echo "== RFB"; for u in https://arquivos.receitafederal.gov.br/ https://arquivos.receitafederal.gov.br/dados/cnpj/ https://arquivos.receitafederal.gov.br/public.php/dav/files/gn672Ad4CF8N6TK/ https://dadosabertos.rfb.gov.br/CNPJ/; do echo "$u -> $(curl -s -A "$UA" -o /tmp/x -w '%{http_code} %{size_download}B' --max-time 30 "$u")"; grep -oE 'href="[^"]+"' /tmp/x | head -5; done
+          echo "== ftp cnae"; curl -s -A "$UA" --max-time 30 https://ftp.ibge.gov.br/ | grep -oiE 'href="[^"]*(cnae|classif|concla)[^"]*"' | head
