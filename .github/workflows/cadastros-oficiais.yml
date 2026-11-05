@@ -1,8 +1,9 @@
 # Atualiza os cadastros oficiais do banco do sistema RC (Supabase) pelas APIs públicas:
 # estados e municípios (IBGE), CNAE (IBGE), bancos (Banco Central), feriados (BrasilAPI + regras da RC)
 # e NCM (Siscomex). Roda no dia 1º de cada mês.
-# O IBGE não responde a partir do servidor do banco; por isso este robô baixa estados, municípios e CNAE,
-# guarda uma cópia enxuta (só dados públicos) em dados/referencias/ e a função lê essa cópia pelo commit exato.
+# A API do IBGE não responde fora do Brasil nem a partir do servidor do banco; por isso este robô baixa os
+# arquivos oficiais do IBGE (DTB do geoftp e CNAE 2.3 do CONCLA), guarda uma cópia enxuta (só dados públicos)
+# em dados/referencias/ e a função lê essa cópia pelo commit exato.
 # Cada parte é uma chamada; parte feita há menos de 6 horas é pulada.
 name: Cadastros oficiais RC
 
@@ -23,21 +24,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Baixar IBGE (estados, municípios, CNAE)
+      - name: Baixar IBGE (DTB e CNAE 2.3, arquivos oficiais)
         run: |
           set -euo pipefail
           mkdir -p dados/referencias /tmp/ibge
-          baixa() { curl -sSf --retry 4 --retry-delay 10 --max-time 180 -H "Accept: application/json" "$1" -o "$2"; }
-          baixa https://servicodados.ibge.gov.br/api/v1/localidades/estados /tmp/ibge/uf.json
-          baixa https://servicodados.ibge.gov.br/api/v1/localidades/municipios /tmp/ibge/mun.json
-          baixa https://servicodados.ibge.gov.br/api/v2/cnae/subclasses /tmp/ibge/cnae.json
-          jq -c '[.[] | {id, sigla, nome, regiao: .regiao.nome}] | sort_by(.id)' /tmp/ibge/uf.json > dados/referencias/uf.json
-          jq -c '[.[] | {id, nome, uf: (.microrregiao.mesorregiao.UF.id // ."regiao-imediata"."regiao-intermediaria".UF.id)}] | sort_by(.id)' /tmp/ibge/mun.json > dados/referencias/municipios.json
-          jq -c '[.[] | {id, descricao, classe: .classe.id, grupo: .classe.grupo.id, divisao: .classe.grupo.divisao.id, secao: .classe.grupo.divisao.secao.id}] | sort_by(.id)' /tmp/ibge/cnae.json > dados/referencias/cnae.json
-          n_uf=$(jq length dados/referencias/uf.json); n_mun=$(jq length dados/referencias/municipios.json); n_cnae=$(jq length dados/referencias/cnae.json)
-          sem_uf=$(jq '[.[] | select(.uf == null)] | length' dados/referencias/municipios.json)
-          echo "Estados: $n_uf · Municípios: $n_mun (sem estado: $sem_uf) · CNAE: $n_cnae"
-          [ "$n_uf" -eq 27 ] && [ "$n_mun" -gt 5500 ] && [ "$sem_uf" -eq 0 ] && [ "$n_cnae" -gt 1000 ] || { echo "::error::Dados do IBGE incompletos"; exit 1; }
+          UA="Mozilla/5.0 (RepresentacoesCosta-SistemaRC)"
+          BASE=https://geoftp.ibge.gov.br/organizacao_do_territorio/estrutura_territorial/divisao_territorial
+          ANO=$(curl -sSf -A "$UA" --retry 3 --max-time 60 "$BASE/" | grep -oE 'href="20[0-9]{2}/"' | grep -oE '20[0-9]{2}' | sort -n | tail -1)
+          ZIP=$(curl -sSf -A "$UA" --retry 3 --max-time 60 "$BASE/$ANO/" | grep -oE 'href="DTB_[^"]+\.zip"' | head -1 | cut -d'"' -f2)
+          echo "DTB: $ANO/$ZIP"
+          curl -sSf -A "$UA" --retry 3 --max-time 300 "$BASE/$ANO/$ZIP" -o /tmp/ibge/DTB.zip
+          curl -sSf -A "$UA" --retry 3 --max-time 120 https://concla.ibge.gov.br/images/concla/documentacao/CNAE_Subclasses_2_3_Estrutura_Detalhada.xlsx -o /tmp/ibge/cnae.xlsx
+          pip install -q pandas openpyxl xlrd odfpy
+          python3 .github/scripts/ibge.py /tmp/ibge dados/referencias
 
       - name: Guardar a cópia (só se mudou)
         run: |
