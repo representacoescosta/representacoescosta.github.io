@@ -1,6 +1,6 @@
 # Atualiza os cadastros oficiais do banco do sistema RC (Supabase) pelas APIs públicas:
 # estados e municípios (IBGE), CNAE (IBGE), bancos (Banco Central), feriados (BrasilAPI + regras da RC)
-# e NCM (Siscomex). Roda no dia 1º de cada mês. A função recusa nova carga com menos de 6 horas.
+# e NCM (Siscomex). Roda no dia 1º de cada mês. Cada parte é uma chamada; parte feita há menos de 6 horas é pulada.
 name: Cadastros oficiais RC
 
 on:
@@ -16,9 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Atualizar cadastros oficiais
+      - name: Atualizar cadastros oficiais (uma parte por chamada)
         run: |
-          resp=$(curl -sS --max-time 400 -w ' HTTP%{http_code}' -X POST -H "Content-Type: application/json" -d '{}' \
-            "https://fufwenjnnsvxdgnenpch.supabase.co/functions/v1/carga-referencias")
-          echo "Resposta: $resp"
-          case "$resp" in *falhou*) echo "::error::Alguma parte da carga falhou (ver rc.integracao_execucao)"; exit 1 ;; *HTTP200|*HTTP429) ;; *) exit 1 ;; esac
+          erro=0
+          for parte in uf-municipio bancos feriados ncm cnae; do
+            resp=$(curl -sS --max-time 170 -w ' HTTP%{http_code}' -X POST -H "Content-Type: application/json" \
+              -d "{\"parte\":\"$parte\"}" "https://fufwenjnnsvxdgnenpch.supabase.co/functions/v1/carga-referencias" || echo "sem resposta")
+            echo "$parte: $resp"
+            case "$resp" in *falhou*|"sem resposta"*) erro=1 ;; *HTTP200) ;; *) erro=1 ;; esac
+          done
+          [ $erro = 0 ] || { echo "::error::Alguma parte da carga falhou (ver rc.integracao_execucao)"; exit 1; }
