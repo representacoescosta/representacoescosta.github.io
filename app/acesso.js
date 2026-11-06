@@ -36,8 +36,24 @@
     });
   });
 
+  /* O iPhone recarrega a página ao voltar do app Senhas: a etapa 2 fica guardada só nesta aba
+     (sessionStorage, some ao fechar a aba) e só pelos 10 minutos de validade da etapa. */
+  var CHAVE = "rc_2fa";
+  function guardar(r) {
+    try { sessionStorage.setItem(CHAVE, JSON.stringify({ token: r.token, otpauth: r.otpauth, segredo: r.segredo, ate: Date.now() + 9.5 * 60000 })); } catch (e) {}
+  }
+  function esquecer() { try { sessionStorage.removeItem(CHAVE); } catch (e) {} }
+  function retomar() {
+    try {
+      var s = JSON.parse(sessionStorage.getItem(CHAVE) || "null");
+      if (s && s.ate > Date.now() && typeof s.token === "string") { mostrar2fa(s); msg($("m2"), "Continue de onde parou: digite os 6 números do app.", "ok"); }
+      else esquecer();
+    } catch (e) { esquecer(); }
+  }
+
   function mostrar2fa(r) {
     token = r.token;
+    if (!r.ate) guardar(r);
     var otp = String(r.otpauth || "");
     if (otp.indexOf("otpauth://totp/") !== 0) return msg($("m1"), "Resposta inválida. Peça um novo convite.", "erro");
     var q = qrcode(0, "M"); q.addData(otp); q.make();
@@ -55,15 +71,20 @@
     ocupado = true; $("b2").disabled = true; msg($("m2"), "Conferindo…");
     chamar("codigo", { token: token, codigo: c }).then(function (r) {
       ocupado = false; $("b2").disabled = false;
-      if (!r || !r.ok) return msg($("m2"), (r && r.erro) || "Código incorreto.", "erro");
+      if (!r || !r.ok) {
+        if (r && /esgotado|entre de novo/i.test(r.erro || "")) { esquecer(); return msg($("m2"), "O tempo desta etapa acabou. Peça um novo código de convite.", "erro"); }
+        return msg($("m2"), (r && r.erro) || "Código incorreto.", "erro");
+      }
       concluir(r.nome);
     });
   });
 
   function concluir(nome) {
-    token = null;
+    token = null; esquecer();
     $("qr").replaceChildren(); $("chave").textContent = ""; $("otp").href = "#";
     $("passo1").hidden = true; $("passo2").hidden = true; $("passo3").hidden = false;
     msg($("m3"), "Tudo certo" + (nome ? ", " + nome : "") + ". Seu acesso está ativo.", "ok");
   }
+
+  retomar();
 })();
