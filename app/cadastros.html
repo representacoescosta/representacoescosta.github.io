@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Sistema RC — Cadastros e Carteira (09/11/2026).
+     Segurança: só scripts do próprio site; só conversa com a API do Sistema RC; a sessão fica só nesta aba;
+     tudo que vem da API entra como texto (nunca HTML). Quem pode o quê é decidido no servidor. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://fufwenjnnsvxdgnenpch.supabase.co; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#FE5000">
+<title>Cadastros · Sistema RC</title>
+<link rel="icon" href="../img/logo-rc.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap">
+<style>
+:root{--laranja:#FE5000;--laranja-esc:#D94400;--cinza:#666;--tinta:#2B2B2B;--fundo:#F4F3F2;--sup:#FFF;--linha:#E2E2E2;--erro:#B3261E;--ok:#1E8E3E;--aviso:#8A5A00;
+  --fonte:"Nunito","Arial Rounded MT Bold","Segoe UI",Arial,sans-serif}
+@media (prefers-color-scheme: dark){:root{--fundo:#141312;--sup:#242424;--tinta:#F2F2F2;--cinza:#B3B3B3;--linha:#3A3A3A;--erro:#F2B8B5;--ok:#7CD992;--aviso:#F5C26B;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fundo);color:var(--tinta);font-family:var(--fonte);font-weight:600;line-height:1.45}
+.topo{background:var(--sup);border-bottom:3px solid var(--laranja);position:sticky;top:0;z-index:5}
+.topo .in{max-width:980px;margin:0 auto;display:flex;align-items:center;gap:10px;padding:10px 16px}
+.topo img{height:30px;width:auto}
+.topo b{font-weight:900;color:var(--cinza);white-space:nowrap} .topo b span{color:var(--laranja)}
+.topo .cresce{flex:1} .topo a{color:var(--cinza);font-weight:800;text-decoration:none;font-size:.9rem}
+nav.abas{max-width:980px;margin:0 auto;display:flex;gap:6px;overflow-x:auto;padding:10px 16px 0}
+nav.abas button{background:var(--sup);color:var(--tinta);border:1px solid var(--linha);padding:10px 14px;white-space:nowrap}
+nav.abas button[aria-selected="true"]{background:var(--laranja);color:#fff;border-color:var(--laranja)}
+main{max-width:980px;margin:0 auto;padding:16px 16px 64px;display:grid;gap:14px}
+h1{font-size:1.4rem;font-weight:900;margin:0} h2{font-size:1.1rem;font-weight:900;margin:0} p{margin:0}
+.cartao{background:var(--sup);border:1px solid var(--linha);border-radius:16px;padding:16px;display:grid;gap:12px}
+.grade{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+label{display:grid;gap:4px;font-weight:800;font-size:.9rem}
+label.marca{display:flex;align-items:center;gap:8px;font-weight:700}
+input,select,textarea{font:inherit;font-weight:700;padding:10px 12px;border:1px solid var(--linha);border-radius:10px;background:var(--fundo);color:var(--tinta);width:100%}
+label.marca input{width:auto}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--laranja);outline-offset:1px}
+.obrig::after{content:" *";color:var(--laranja)}
+button{font:inherit;font-weight:900;border:0;border-radius:10px;padding:11px 14px;background:var(--laranja);color:#fff;cursor:pointer}
+button.sec{background:transparent;color:var(--laranja);border:2px solid var(--laranja)}
+button:disabled{opacity:.6;cursor:wait}
+.acoes{display:flex;gap:8px;flex-wrap:wrap}
+.msg{font-weight:800;min-height:1.2em} .msg.erro{color:var(--erro)} .msg.ok{color:var(--ok)}
+.dica{font-size:.85rem;color:var(--cinza);font-weight:600}
+.lista{display:grid;gap:8px}
+.item{border:1px solid var(--linha);border-radius:12px;padding:12px;display:grid;gap:4px;background:var(--sup)}
+.item .t{font-weight:900} .item .s{font-size:.88rem;color:var(--cinza)}
+.selo{display:inline-block;font-size:.75rem;font-weight:900;padding:2px 8px;border-radius:99px;border:1px solid var(--linha);margin-left:6px}
+.selo.gerado{color:var(--aviso);border-color:var(--aviso)}
+table{width:100%;border-collapse:collapse;font-size:.9rem} th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--linha)} th{font-weight:900}
+.rolar{overflow-x:auto}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header class="topo"><div class="in"><img src="../img/logo-rc.png" alt="(RC)" width="76" height="30"><b>Sistema RC · <span>Cadastros</span></b><span class="cresce"></span><a href="entrar.html">Conta</a></div></header>
+<nav class="abas" role="tablist" aria-label="Cadastros">
+  <button type="button" role="tab" data-aba="carteira" aria-selected="true">Carteira</button>
+  <button type="button" role="tab" data-aba="cliente" aria-selected="false">Cliente</button>
+  <button type="button" role="tab" data-aba="representadas" aria-selected="false">Representadas</button>
+  <button type="button" role="tab" data-aba="produtos" aria-selected="false">Produtos</button>
+  <button type="button" role="tab" data-aba="tabelas" aria-selected="false">Tabelas de preço</button>
+</nav>
+<main id="palco"><p class="dica">Carregando…</p></main>
+<script src="cadastros.js?v=1"></script>
+</body>
+</html>
