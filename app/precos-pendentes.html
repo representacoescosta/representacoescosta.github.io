@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Sistema RC — Preços pendentes (13/11/2026): o gestor aprova o preço dos produtos sem preço na tabela.
+     Segurança: só scripts do próprio site; só conversa com a API do Sistema RC; a sessão fica só nesta aba;
+     tudo que vem da API entra como texto (nunca HTML). Quem pode aprovar é decidido no servidor (preco.ajustar). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://fufwenjnnsvxdgnenpch.supabase.co; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#FE5000">
+<title>Preços pendentes · Sistema RC</title>
+<link rel="icon" href="../img/logo-rc.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap">
+<style>
+:root{--laranja:#FE5000;--laranja-esc:#D94400;--cinza:#666;--tinta:#2B2B2B;--fundo:#F4F3F2;--sup:#FFF;--linha:#E2E2E2;--erro:#B3261E;--ok:#1E8E3E;--aviso:#8A5A00;
+  --fonte:"Nunito","Arial Rounded MT Bold","Segoe UI",Arial,sans-serif}
+@media (prefers-color-scheme: dark){:root{--fundo:#141312;--sup:#242424;--tinta:#F2F2F2;--cinza:#B3B3B3;--linha:#3A3A3A;--erro:#F2B8B5;--ok:#7CD992;--aviso:#F5C26B;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fundo);color:var(--tinta);font-family:var(--fonte);font-weight:600;line-height:1.45}
+.topo{background:var(--sup);border-bottom:3px solid var(--laranja);position:sticky;top:0;z-index:5}
+.topo .in{max-width:980px;margin:0 auto;display:flex;align-items:center;gap:10px;padding:10px 16px}
+.topo img{height:30px;width:auto}
+.topo b{font-weight:900;color:var(--cinza);white-space:nowrap} .topo b span{color:var(--laranja)}
+.topo .cresce{flex:1} .topo a{color:var(--cinza);font-weight:800;text-decoration:none;font-size:.9rem}
+.estado{max-width:980px;margin:0 auto;padding:8px 16px 0;font-size:.85rem;color:var(--cinza);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.estado .fila{font-weight:900;color:var(--aviso)}
+main{max-width:980px;margin:0 auto;padding:12px 16px 120px;display:grid;gap:14px}
+h1{font-size:1.4rem;font-weight:900;margin:0} h2{font-size:1.1rem;font-weight:900;margin:0;display:flex;gap:8px;align-items:center} p{margin:0}
+h2 .n{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:99px;background:var(--laranja);color:#fff;font-size:.9rem;flex:none}
+.cartao{background:var(--sup);border:1px solid var(--linha);border-radius:16px;padding:16px;display:grid;gap:12px}
+.grade{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+.duas{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+label{display:grid;gap:4px;font-weight:800;font-size:.9rem}
+label.marca{display:flex;align-items:flex-start;gap:8px;font-weight:700}
+input,select,textarea{font:inherit;font-weight:700;padding:10px 12px;border:1px solid var(--linha);border-radius:10px;background:var(--fundo);color:var(--tinta);width:100%}
+input.grande{font-size:1.25rem;text-align:center}
+label.marca input{width:auto;margin-top:3px}
+input:focus-visible,select:focus-visible,button:focus-visible,textarea:focus-visible{outline:2px solid var(--laranja);outline-offset:1px}
+.obrig::after{content:" *";color:var(--laranja)}
+button{font:inherit;font-weight:900;border:0;border-radius:10px;padding:11px 14px;background:var(--laranja);color:#fff;cursor:pointer}
+button.sec{background:transparent;color:var(--laranja);border:2px solid var(--laranja)}
+button.lixo{background:transparent;color:var(--erro);border:0;padding:6px 8px}
+button:disabled{opacity:.6;cursor:wait}
+.acoes{display:flex;gap:8px;flex-wrap:wrap}
+.msg{font-weight:800;min-height:1.2em} .msg.erro{color:var(--erro)} .msg.ok{color:var(--ok)}
+.dica{font-size:.85rem;color:var(--cinza);font-weight:600}
+.aviso{border:1px solid var(--aviso);color:var(--aviso);border-radius:12px;padding:10px 12px;font-weight:800}
+.aviso.erro{border-color:var(--erro);color:var(--erro)}
+.sug{display:grid;gap:4px;max-height:280px;overflow:auto}
+.sug button{background:var(--fundo);color:var(--tinta);border:1px solid var(--linha);text-align:left;font-weight:700;padding:10px 12px}
+.sug button small{display:block;color:var(--cinza);font-weight:600}
+.lista{display:grid;gap:8px}
+.item{border:1px solid var(--linha);border-radius:12px;padding:10px 12px;display:grid;grid-template-columns:1fr auto;gap:2px 8px;background:var(--sup)}
+.item .t{font-weight:900} .item .s{font-size:.88rem;color:var(--cinza);grid-column:1}
+.item .v{font-weight:900;text-align:right;white-space:nowrap}
+.selo{display:inline-block;font-size:.72rem;font-weight:900;padding:1px 8px;border-radius:99px;border:1px solid var(--linha);margin-left:6px;vertical-align:middle}
+.selo.pend{color:var(--aviso);border-color:var(--aviso)} .selo.bon{color:var(--ok);border-color:var(--ok)} .selo.aj{color:var(--laranja);border-color:var(--laranja)}
+.preco{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.preco b{font-size:1.2rem;font-weight:900}
+.rodape{position:fixed;left:0;right:0;bottom:0;background:var(--sup);border-top:3px solid var(--laranja);z-index:6}
+.rodape .in{max-width:980px;margin:0 auto;padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:flex;gap:10px;align-items:center}
+.rodape .tot{flex:1;font-size:.9rem} .rodape .tot b{font-size:1.1rem;font-weight:900;display:block}
+table{width:100%;border-collapse:collapse;font-size:.9rem} th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--linha)} th{font-weight:900}
+td.num,th.num{text-align:right;white-space:nowrap}
+.rolar{overflow-x:auto}
+[hidden]{display:none!important}
+@media (max-width:520px){.duas{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="topo"><div class="in"><img src="../img/logo-rc.png" alt="(RC)" width="76" height="30"><b>Sistema RC · <span>Preços pendentes</span></b><span class="cresce"></span><a href="pedido.html">Fazer pedido</a><a href="entrar.html">Conta</a></div></header>
+<main id="palco"><p class="dica">Carregando…</p></main>
+<script src="precos-pendentes.js?v=1"></script>
+</body>
+</html>
