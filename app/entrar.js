@@ -1,11 +1,14 @@
-/* Sistema RC — entrada (06/11/2026).
+/* Sistema RC — entrada (06/11/2026; v2 13/11/2026: os botões das telas aparecem conforme as permissões da sessão).
    Conversa só com a API do Sistema RC (api-rc). A senha nunca é guardada. A sessão fica só nesta aba
    (sessionStorage: some ao fechar a aba) e vale o tempo que o servidor decide (administrador: 30 min sem uso).
-   Todo texto vindo da API entra na tela como texto (textContent), nunca como HTML. */
+   Todo texto vindo da API entra na tela como texto (textContent), nunca como HTML.
+   Os botões só escondem o caminho: quem decide o acesso é sempre o servidor (cada API confere a permissão). */
 (function () {
   "use strict";
   var API = "https://fufwenjnnsvxdgnenpch.supabase.co/functions/v1/api-rc/";
   var CHAVE = "rc_sessao", PERFIS = { administrador: "Administrador", gestor: "Gestor", vendedor: "Vendedor", backoffice: "Escritório", leitura: "Consulta" };
+  // Botão da tela -> permissão necessária (rc.permissao.codigo)
+  var BOTOES = { irPedido: "pedido.criar", irPrecos: "preco.ajustar" };
   var tokenCodigo = null, ocupado = false;
   var $ = function (id) { return document.getElementById(id); };
 
@@ -23,11 +26,17 @@
   function esquecer() { try { sessionStorage.removeItem(CHAVE); } catch (e) {} }
   function mostrar(n) { ["passo1", "passo2", "passo3"].forEach(function (p, i) { $(p).hidden = i !== n - 1; }); }
   function trava(b, sim) { ocupado = sim; b.disabled = sim; }
+  function mostrarBotoes(permissoes) {
+    var tem = {};
+    if (Array.isArray(permissoes)) permissoes.forEach(function (c) { if (typeof c === "string") tem[c] = 1; });
+    Object.keys(BOTOES).forEach(function (id) { if ($(id)) $(id).hidden = !tem[BOTOES[id]]; });
+  }
 
   function abrirSessao(t, m) {
     chamar("sessao", { token: t }).then(function (r) {
-      if (!r || !r.ok) { esquecer(); mostrar(1); return msg($("m1"), m ? (r && r.erro) || "Sessão encerrada. Entre de novo." : "", m ? "erro" : ""); }
+      if (!r || !r.ok) { esquecer(); mostrarBotoes(null); mostrar(1); return msg($("m1"), m ? (r && r.erro) || "Sessão encerrada. Entre de novo." : "", m ? "erro" : ""); }
       guardar(t);
+      mostrarBotoes(r.permissoes);
       mostrar(3);
       msg($("m3"), "Olá, " + r.nome + ".", "ok");
       $("info").textContent = "Perfil: " + (PERFIS[r.perfil] || r.perfil) + " · " + r.email;
@@ -64,7 +73,7 @@
   });
 
   $("sair").addEventListener("click", function () {
-    var t = lida(); esquecer();
+    var t = lida(); esquecer(); mostrarBotoes(null);
     chamar("sair", { token: t || "" }).then(function () { mostrar(1); msg($("m1"), "Você saiu.", "ok"); });
   });
 

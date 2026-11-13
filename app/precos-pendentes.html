@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<!-- Sistema RC — Preços pendentes (13/11/2026): o gestor aprova o preço dos produtos sem preço na tabela.
+<!-- Sistema RC — Preços pendentes (13/11/2026; v2 13/11/2026: pedido sumido recarrega a lista; preço "1.234" sem vírgula recusado):
+     o gestor aprova o preço dos produtos sem preço na tabela.
      Segurança: só scripts do próprio site; só conversa com a API do Sistema RC; a sessão fica só nesta aba;
      tudo que vem da API entra como texto (nunca HTML). Quem pode aprovar é decidido no servidor (preco.ajustar). -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://fufwenjnnsvxdgnenpch.supabase.co; base-uri 'none'; form-action 'none'">
@@ -72,6 +73,6 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <body>
 <header class="topo"><div class="in"><img src="../img/logo-rc.png" alt="(RC)" width="76" height="30"><b>Sistema RC · <span>Preços pendentes</span></b><span class="cresce"></span><a href="pedido.html">Fazer pedido</a><a href="entrar.html">Conta</a></div></header>
 <main id="palco"><p class="dica">Carregando…</p></main>
-<script src="precos-pendentes.js?v=1"></script>
+<script src="precos-pendentes.js?v=2"></script>
 </body>
 </html>

@@ -1,6 +1,8 @@
-/* Sistema RC — Preços pendentes (13/11/2026, v1).
+/* Sistema RC — Preços pendentes (13/11/2026, v2).
    O gestor vê os pedidos com produto sem preço na tabela (status "aguardando preço"), digita o preço e libera o pedido.
    API: api-pedidos "aguardando-preco" (fila) e "aprovar-precos" (grava, com conferência da versão do pedido).
+   v2 (13/11/2026): pedido que sumiu da fila (nao_encontrado: cancelado ou removido) também recarrega a lista;
+   "1.234" sem vírgula é recusado (ambíguo: use 1.234,00 ou 1,234).
    Segurança: quem pode aprovar é decidido no servidor (permissão preco.ajustar); a tela só mostra o que a API devolve,
    sempre como texto; ids só uuid; preço conferido aqui (> 0, até 99.999) e de novo no servidor. */
 (function () {
@@ -8,6 +10,7 @@
   var API = "https://fufwenjnnsvxdgnenpch.supabase.co/functions/v1/api-pedidos/";
   var CHAVE_SESSAO = "rc_sessao";
   var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  var RECARREGA = { conflito: 1, sem_pendencia: 1, nao_encontrado: 1 };
   var palco = document.getElementById("palco");
 
   function el(tag, props) {
@@ -32,6 +35,7 @@
   function msg(m, texto, tipo) { m.textContent = texto || ""; m.className = "msg" + (tipo ? " " + tipo : ""); }
   function token() { try { return sessionStorage.getItem(CHAVE_SESSAO); } catch (e) { return null; } }
   function numero(v) { v = String(v === null || v === undefined ? "" : v).trim().replace(/\s|R\$/g, ""); if (v.indexOf(",") >= 0) v = v.replace(/\./g, "").replace(",", "."); var n = Number(v); return v !== "" && isFinite(n) ? n : null; }
+  function ambiguo(v) { v = String(v === null || v === undefined ? "" : v).trim().replace(/\s|R\$/g, ""); return v.indexOf(",") < 0 && /^\d{1,3}(\.\d{3})+$/.test(v); }
   function dec(v, c) { return v === null || v === undefined || v === "" ? "" : Number(v).toLocaleString("pt-BR", { minimumFractionDigits: c, maximumFractionDigits: c }); }
   function moeda(v) { return v === null || v === undefined ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 
@@ -89,12 +93,14 @@
         el("label", { style: "grid-column:1 / -1" }, el("span", { text: "Preço aprovado (R$/" + un + ")" }), ent)));
     });
     var botao = el("button", { type: "button", text: "Aprovar preços", onclick: function () {
-      var itens = [], ruim = false;
+      var itens = [], ruim = false, duvida = false;
       campos.forEach(function (c) {
-        var v = c.ent.value.trim(); if (!v) return;
+        var v = c.ent.value.trim(); if (!v) { c.ent.removeAttribute("aria-invalid"); return; }
+        if (ambiguo(v)) { duvida = true; c.ent.setAttribute("aria-invalid", "true"); return; }
         var n = numero(v);
         if (!(n >= 0.01 && n <= 99999)) { ruim = true; c.ent.setAttribute("aria-invalid", "true"); } else { c.ent.removeAttribute("aria-invalid"); itens.push({ item_id: c.id, preco: Math.round(n * 100) / 100 }); }
       });
+      if (duvida) return msg(m, "Preço ambíguo: use vírgula para os centavos (ex.: 10,50 ou 1.234,00).", "erro");
       if (ruim) return msg(m, "Confira os preços marcados: use valores entre 0,01 e 99.999.", "erro");
       if (!itens.length) return msg(m, "Digite o preço de ao menos um produto.", "erro");
       botao.disabled = true; msg(m, "Gravando…");
@@ -106,7 +112,7 @@
                                        : txt(p.pedido) + " liberado (" + (r.status === "sugestao" ? "sugestão" : "novo") + "). Total a faturar: " + moeda(r.total_valor) + ".";
           return carregar([t, "ok"]);
         }
-        if (r.codigo === "conflito" || r.codigo === "sem_pendencia") return carregar([txt(p.pedido) + ": " + (r.erro || "o pedido mudou") + " A lista foi atualizada.", "erro"]);
+        if (RECARREGA[r.codigo]) return carregar([txt(p.pedido) + ": " + (r.erro || "o pedido mudou.") + " A lista foi atualizada.", "erro"]);
         msg(m, (r.erro || "Não foi possível gravar.") + (r.item ? " (produto " + r.item + " da lista enviada)" : ""), "erro");
       });
     } });

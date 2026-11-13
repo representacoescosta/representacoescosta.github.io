@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- Entrada no Sistema RC (06/11/2026): e-mail + senha (+ código de 6 números para quem tem 2 etapas). Toda regra fica na API (api-rc) e no banco.
+     v2 (13/11/2026): "Fazer pedido" só aparece com a permissão pedido.criar e "Preços pendentes" só com preco.ajustar (entrar.js v2);
+     o acesso continua decidido no servidor.
      Segurança: só scripts do próprio site; só conversa com a API do Sistema RC; nada é guardado no aparelho. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://fufwenjnnsvxdgnenpch.supabase.co; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
@@ -65,13 +67,13 @@ ol{margin:0;padding-left:20px;display:grid;gap:4px}
     <h1 id="t3">Você entrou</h1>
     <p class="msg ok" id="m3"></p>
     <p class="dica" id="info"></p>
-    <a class="botao" href="pedido.html">Fazer pedido</a>
-    <a class="botao" href="precos-pendentes.html">Preços pendentes (gestor)</a>
+    <a class="botao" id="irPedido" href="pedido.html" hidden>Fazer pedido</a>
+    <a class="botao" id="irPrecos" href="precos-pendentes.html" hidden>Preços pendentes</a>
     <a class="botao" href="cadastros.html">Cadastros e Carteira</a>
     <p class="dica">As próximas telas do Sistema RC vão aparecer aqui, por etapas.</p>
     <button id="sair" type="button">Sair</button>
   </section>
 </main>
-<script src="entrar.js?v=1"></script>
+<script src="entrar.js?v=2"></script>
 </body>
 </html>

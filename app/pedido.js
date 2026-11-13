@@ -1,4 +1,4 @@
-/* Sistema RC — Fazer pedido (v2, 13/11/2026).
+/* Sistema RC — Fazer pedido (v3, 13/11/2026).
    Decisões do Eric (13/11/2026): ninguém escolhe vendedor nem representada para fazer pedido.
    - Escolhe o cliente: ele já traz o vendedor de cada representada (vendedor da loja do vínculo).
    - Vendedor só vê os clientes dele (a RLS do pacote e o filtro abaixo). Gestor vê também cliente sem vendedor
@@ -8,6 +8,9 @@
    Dados do dia: api-fichas "sincronizar" (carteira, produtos, preços, prazos), guardados só nesta aba e atualizados por diferença.
    Envio: api-pedidos "enviar-pedido", uma chave por representada gerada no aparelho; sem internet fica na fila deste
    aparelho e sobe sozinho quando a conexão volta (reenviar a mesma chave não duplica).
+   v3 (13/11/2026): o campo de preço do gestor segue a permissão preco.ajustar que vem da sessão (igual ao servidor);
+   "aguarda o gestor" segue o status aguardando_preco devolvido pelo servidor (vale também no reenvio da fila);
+   preço sugerido aparece como sugestão; "1.234" sem vírgula no preço é recusado (ambíguo).
    Segurança: o preço da tela é só uma prévia — o servidor recalcula preço, permissão, carteira e vendedor; nada de HTML
    vindo da API (tudo entra como texto); a sessão fica só nesta aba; a fila guarda só o pedido (nunca a sessão). */
 (function () {
@@ -23,6 +26,7 @@
 
   var palco = document.getElementById("palco");
   var PERFIL = null, NOME = "";
+  var PERMISSOES = {};          // códigos de permissão da sessão (api-rc "sessao"); sem sessão confirmada fica vazio
   var P = null;                 // pacote do dia: { dados: {tabela: {id: linha}}, cursores: {tabela: {em,id}}, em }
   var F = null;                 // rascunho do pedido
   var USUARIOS = {};            // id -> nome (api-fichas "opcoes"; a RLS decide: vendedor só se vê)
@@ -53,6 +57,9 @@
   function gravar(armazem, chave, v) { try { armazem.setItem(chave, JSON.stringify(v)); return true; } catch (e) { return false; } }
   function token() { try { return sessionStorage.getItem(CHAVE_SESSAO); } catch (e) { return null; } }
   function numero(v) { v = String(v === null || v === undefined ? "" : v).trim().replace(/\s|R\$/g, ""); if (v.indexOf(",") >= 0) v = v.replace(/\./g, "").replace(",", "."); var n = Number(v); return v !== "" && isFinite(n) ? n : null; }
+  // Preço: "1.234" sem vírgula é ambíguo (mil e duzentos ou um real e vinte e três?) e fica recusado.
+  function precoAmbiguo(v) { v = String(v === null || v === undefined ? "" : v).trim().replace(/\s|R\$/g, ""); return v.indexOf(",") < 0 && /^\d{1,3}(\.\d{3})+$/.test(v); }
+  function numeroPreco(v) { return precoAmbiguo(v) ? null : numero(v); }
   function moeda(v) { return v === null || v === undefined ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
   function dec(v, c) { return v === null || v === undefined ? "—" : Number(v).toLocaleString("pt-BR", { minimumFractionDigits: c, maximumFractionDigits: c }); }
   function r2(v) { return Math.round(v * 100) / 100; }
@@ -68,7 +75,9 @@
     var h = Array.prototype.map.call(b, function (x) { return (x + 256).toString(16).slice(1); }).join("");
     return h.slice(0, 8) + "-" + h.slice(8, 12) + "-" + h.slice(12, 16) + "-" + h.slice(16, 20) + "-" + h.slice(20);
   }
-  function ehGestor() { return !!PERFIS_GESTOR[PERFIL]; }
+  function ehGestor() { return !!PERFIS_GESTOR[PERFIL]; }                       // carteira: ver e cadastrar cliente sem vendedor
+  function podeAjustarPreco() { return !!PERMISSOES["preco.ajustar"]; }       // preço: mesma regra do servidor (rc.pode)
+  function aguardaGestor(x) { return !!(x && (x.aguardando || x.pendentes)); }
 
   function chamar(api, acao, dados) {
     var t = token();
@@ -223,7 +232,7 @@
     if (!o && t.pad) { i = itemTabela(t.pad.id, prod.id); if (i && i.preco_unidade_venda != null) o = "padrao"; else i = null; }
     return { origem: o, pu: i ? Number(i.preco_unidade_venda) : null, pc: i && i.preco_caixa != null ? Number(i.preco_caixa) : null };
   }
-  // Mesmo cálculo do servidor (rc.api_enviar_pedido).
+  // Mesmo cálculo do servidor (rc.api_enviar_pedido), com a mesma permissão (preco.ajustar).
   function calcular(linha) {
     var prod = P.dados.produto[linha.produto_id], cx = caixa(linha.produto_id);
     if (!prod || prod.representada_id !== linha.representada_id) return { erro: "Produto não está mais na tabela desta representada." };
@@ -233,10 +242,10 @@
       if (digitado == null) return { erro: "Leite longa vida: informe o preço deste pedido." };
       origem = "digitado_ll"; preco = digitado;
     } else if (!tb.origem) {
-      if (digitado != null && ehGestor()) { origem = "ajuste_gestor"; preco = digitado; }
+      if (digitado != null && podeAjustarPreco()) { origem = "ajuste_gestor"; preco = digitado; }
       else { origem = "pendente_gestor"; preco = digitado; }
     } else if (digitado != null && digitado !== tb.pu) {
-      if (!ehGestor()) return { erro: "Só o gestor muda o preço da tabela." };
+      if (!podeAjustarPreco()) return { erro: "Só o gestor muda o preço da tabela." };
       origem = "ajuste_gestor"; preco = digitado;
     } else { origem = tb.origem; preco = tb.pu; }
     if (prod.tipo_peso === "PV" && !(peso > 0)) return { erro: "Produto sem peso da caixa cadastrado. Avise o escritório." };
@@ -250,6 +259,11 @@
     return { origem: origem, preco: preco, tabela: tb.pu, total: total, kg: peso > 0 ? Math.round(linha.caixas * peso * 1000) / 1000 : null };
   }
   function unidade(prod) { return prod.tipo_peso === "PV" ? "kg" : "un"; }
+  // Texto do preço de uma linha: item pendente mostra a sugestão do vendedor como sugestão, nunca como preço.
+  function textoPreco(r, prod, curto) {
+    if (r.origem === "pendente_gestor") return r.preco != null ? (curto ? "sug. " + dec(r.preco, 2) : "sugestão " + moeda(r.preco) + "/" + unidade(prod)) : (curto ? "—" : "sem preço");
+    return r.preco != null ? (curto ? dec(r.preco, 2) : moeda(r.preco) + "/" + unidade(prod)) : (curto ? "—" : "sem preço");
+  }
 
   /* ---------- rascunho ---------- */
   function rascunhoNovo() {
@@ -426,15 +440,15 @@
     var bon = el("input", { type: "checkbox" }); bon.checked = ATUAL.bonificado || F.so_bonificacao; bon.disabled = F.so_bonificacao;
     var pr = null, rot = null;
     if (prod.tipo_peso === "LL") rot = "Preço deste pedido (R$/" + unidade(prod) + ") — obrigatório";
-    else if (!tb.origem) rot = ehGestor() ? "Preço (R$/" + unidade(prod) + ") — sem preço na tabela; se deixar vazio, fica pendente" : "Sugestão de preço (R$/" + unidade(prod) + ") — opcional; o gestor aprova";
-    else if (ehGestor()) rot = "Preço deste pedido (R$/" + unidade(prod) + ") — ajuste do gestor";
+    else if (!tb.origem) rot = podeAjustarPreco() ? "Preço (R$/" + unidade(prod) + ") — sem preço na tabela; se deixar vazio, fica pendente" : "Sugestão de preço (R$/" + unidade(prod) + ") — opcional; o gestor aprova";
+    else if (podeAjustarPreco()) rot = "Preço deste pedido (R$/" + unidade(prod) + ") — ajuste do gestor";
     if (rot) { pr = el("input", { class: "grande", inputmode: "decimal", autocomplete: "off", placeholder: tb.origem ? dec(tb.pu, 2) + " (tabela)" : "0,00" }); if (ATUAL.preco != null) pr.value = dec(ATUAL.preco, 2); }
     var prev = el("div", { class: "preco" });
     function previa() {
       var n = numero(qCx.value);
       ATUAL.caixas = n && n >= 1 && n <= 9999 && Math.floor(n) === n ? n : null;
       ATUAL.bonificado = bon.checked;
-      ATUAL.preco = pr ? numero(pr.value) : null;
+      ATUAL.preco = pr ? numeroPreco(pr.value) : null;
       prev.replaceChildren(el("span", { class: "selo" + (tb.origem ? "" : " pend"), text: tb.origem === "negociada" ? "Negociada" : tb.origem === "padrao" ? "Padrão" : prod.tipo_peso === "LL" ? "LL" : "Sem preço" }),
         el("b", { text: tb.origem ? moeda(tb.pu) + "/" + unidade(prod) : "—" }));
       if (ATUAL.caixas) {
@@ -449,6 +463,7 @@
     var add = el("button", { type: "button", text: "Adicionar ao pedido", onclick: function () {
       previa();
       if (!ATUAL.caixas) return msg(m, "Informe as caixas (número inteiro, de 1 a 9.999).", "erro");
+      if (pr && pr.value.trim() && precoAmbiguo(pr.value)) return msg(m, "Preço ambíguo: use vírgula para os centavos (ex.: 10,50 ou 1.234,00).", "erro");
       if (pr && pr.value.trim() && !(ATUAL.preco > 0)) return msg(m, "Preço inválido.", "erro");
       var b = ATUAL.bonificado || F.so_bonificacao;
       if (F.itens.some(function (i) { return i.produto_id === ATUAL.produto_id && (i.bonificado || F.so_bonificacao) === b; }))
@@ -503,7 +518,7 @@
             r.origem === "pendente_gestor" ? el("span", { class: "selo pend", text: "Aguarda o gestor" }) : null,
             r.origem === "ajuste_gestor" ? el("span", { class: "selo aj", text: "Preço ajustado" }) : null),
           el("div", { class: "v" }, el("button", { type: "button", class: "lixo", text: "Apagar", "aria-label": "Apagar item", onclick: function () { F.itens.splice(n, 1); salvarRascunho(); desenharItens(); } })),
-          el("div", { class: "s", text: r.erro ? r.erro : i.caixas + " cx" + (r.kg ? " · " + dec(r.kg, 3) + " kg" : "") + " · " + (r.preco != null ? moeda(r.preco) + "/" + unidade(prod) : "sem preço") + " · " + (r.total == null ? "total depois da aprovação" : moeda(r.total)) })));
+          el("div", { class: "s", text: r.erro ? r.erro : i.caixas + " cx" + (r.kg ? " · " + dec(r.kg, 3) + " kg" : "") + " · " + textoPreco(r, prod, false) + " · " + (r.total == null ? "total depois da aprovação" : moeda(r.total)) })));
       });
     });
     atualizarRodape();
@@ -544,12 +559,12 @@
         if (i.representada_id !== repId) return;
         var prod = P.dados.produto[i.produto_id], b = i.bonificado || F.so_bonificacao, r = calcular(Object.assign({}, i, { bonificado: b }));
         corpo.append(el("tr", null, el("td", { text: prod.descricao + (b ? " (bonificado)" : "") }), el("td", { class: "num", text: String(i.caixas) }),
-          el("td", { class: "num", text: r.preco != null ? dec(r.preco, 2) : "—" }), el("td", { class: "num", text: r.total == null ? "aguarda gestor" : moeda(r.total) })));
+          el("td", { class: "num", text: textoPreco(r, prod, true) }), el("td", { class: "num", text: r.total == null ? "aguarda gestor" : moeda(r.total) })));
       });
       c.append(el("p", null, el("b", { text: nomeRep(repId) }), " · Vendedor: " + (nomeUsuario(v.vendedor_loja_id) || "da carteira")),
         el("div", { class: "rolar" }, el("table", null, el("thead", null, el("tr", null, el("th", { text: "Produto" }), el("th", { class: "num", text: "Cx" }), el("th", { class: "num", text: "Preço" }), el("th", { class: "num", text: "Total" }))), corpo)),
         el("p", { class: "dica", text: "A faturar: " + moeda(t.valor) + (t.bon ? " · Bonificação: " + moeda(t.bon) : "") + " · " + t.cx + " cx · " + dec(t.kg, 1) + " kg" }));
-      if (t.pend) c.append(el("div", { class: "aviso", text: t.pend + (t.pend === 1 ? " produto sem preço na tabela" : " produtos sem preço na tabela") + ": este pedido fica aguardando a aprovação do gestor." }));
+      if (t.pend) c.append(el("div", { class: "aviso", text: t.pend + (t.pend === 1 ? " produto sem preço na tabela: o pedido" : " produtos sem preço na tabela: o pedido") + " fica aguardando a aprovação do gestor e só segue depois dela. O total a faturar não conta esses produtos." }));
     });
     c.append(el("p", null, el("b", { text: "Total a faturar: " + moeda(tg.valor) }), " · " + tg.cx + " cx · " + dec(tg.kg, 1) + " kg"),
       el("p", { class: "dica", text: "Valores calculados no aparelho; o servidor confere preço, permissão, carteira e vendedor ao receber." }));
@@ -611,7 +626,9 @@
         atual.forEach(function (x, n) { if (x.pedido.chave === item.pedido.chave) k = n; });
         if (r._http === 401) { enviando = false; mostrarFila(); semSessao(); return; }
         if (r.ok) {
-          var env = enviados(); env.unshift({ numero: r.numero, status: r.status, titulo: item.titulo, grupo: item.grupo || null, em: new Date().toISOString(), avisos: (r.avisos || []).slice(0, 5), pendentes: r.itens_pendentes || 0 });
+          // "aguardando": o status do servidor manda (no reenvio, "ja_recebido" traz o status mas não traz itens_pendentes).
+          var env = enviados(); env.unshift({ numero: r.numero, status: r.status, aguardando: r.status === "aguardando_preco", titulo: item.titulo, grupo: item.grupo || null,
+            em: new Date().toISOString(), avisos: (r.avisos || []).slice(0, 5), pendentes: r.itens_pendentes || 0 });
           gravar(localStorage, CHAVE_ENVIADOS, env.slice(0, 30));
           if (k >= 0) atual.splice(k, 1);
           gravar(localStorage, CHAVE_FILA, atual); q = atual; i = 0;
@@ -653,7 +670,7 @@
     });
     env.forEach(function (x) {
       c.append(el("div", { class: "item" }, el("div", { class: "t", text: (x.numero || "") + " · " + x.titulo }),
-        el("div", { class: "v", text: x.pendentes ? "Aguarda o gestor" : "Recebido" }),
+        el("div", { class: "v", text: aguardaGestor(x) ? "Aguarda o gestor" : "Recebido" }),
         el("div", { class: "s", text: "Enviado em " + new Date(x.em).toLocaleString("pt-BR") + (x.avisos && x.avisos.length ? " · " + x.avisos.join(" ") : "") })));
     });
     if (q.some(function (x) { return x.estado === "aguardando"; }))
@@ -666,7 +683,9 @@
     var c = el("section", { class: "cartao" });
     c.append(el("h1", { text: rec.length ? "Atenção: pedido recusado" : pend.length ? "Pedido guardado na fila" : ok.length > 1 ? ok.length + " pedidos recebidos" : "Pedido " + ((ok[0] && ok[0].numero) || "") + " recebido" }));
     ok.forEach(function (x) {
-      c.append(el("p", { class: x.pendentes ? "aviso" : "msg ok", text: (x.numero || "") + " · " + x.titulo + (x.pendentes ? " — aguardando o gestor aprovar o preço de " + x.pendentes + (x.pendentes === 1 ? " produto." : " produtos.") : " — recebido.") }));
+      var ag = aguardaGestor(x);
+      c.append(el("p", { class: ag ? "aviso" : "msg ok", text: (x.numero || "") + " · " + x.titulo + (!ag ? " — recebido." :
+        x.pendentes ? " — aguardando o gestor aprovar o preço de " + x.pendentes + (x.pendentes === 1 ? " produto." : " produtos.") : " — aguardando o gestor aprovar o preço.") }));
       if (x.avisos && x.avisos.length) c.append(el("p", { class: "dica", text: x.avisos.join(" ") }));
     });
     rec.forEach(function (x) { c.append(el("div", { class: "aviso erro", text: x.titulo + ": " + x.erro })); });
@@ -685,6 +704,8 @@
     chamar("api-rc", "sessao", {}).then(function (s) {
       if (!s || !s.ok) { if (s && s._http === 0) return iniciarComPacote(null); return semSessao(); }
       PERFIL = s.perfil; NOME = s.nome || "";
+      PERMISSOES = {};
+      if (Array.isArray(s.permissoes)) s.permissoes.forEach(function (c) { if (typeof c === "string" && /^[a-z_]+\.[a-z_]+$/.test(c)) PERMISSOES[c] = 1; });
       carregarUsuarios().then(function () { if (F && !ATUAL && $("cartaoCliente")) trocarCartaoCliente(); });   // em paralelo: não atrasa a abertura
       iniciarComPacote(true);
     });

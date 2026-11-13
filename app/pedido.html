@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<!-- Sistema RC — Fazer pedido (12/11/2026; v2 13/11/2026: o cliente traz representadas e vendedores; representada só filtra produtos).
+<!-- Sistema RC — Fazer pedido (12/11/2026; v2 13/11/2026: o cliente traz representadas e vendedores; representada só filtra produtos;
+     v3 13/11/2026: preço do gestor pela permissão preco.ajustar; "aguarda o gestor" pelo status aguardando_preco).
      Segurança: só scripts do próprio site; só conversa com a API do Sistema RC; a sessão fica só nesta aba;
      tudo que vem da API entra como texto (nunca HTML). Preço, permissão, carteira e vendedor são conferidos de novo no servidor. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://fufwenjnnsvxdgnenpch.supabase.co; base-uri 'none'; form-action 'none'">
@@ -74,6 +75,6 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <div class="estado" id="estado"><span id="pacote">Preparando os dados do dia…</span><span class="fila" id="fila" hidden></span></div>
 <main id="palco"><p class="dica">Carregando…</p></main>
 <div class="rodape" id="rodape" hidden><div class="in"><div class="tot" id="totais"></div><button type="button" id="revisar">Revisar e enviar</button></div></div>
-<script src="pedido.js?v=2"></script>
+<script src="pedido.js?v=3"></script>
 </body>
 </html>
