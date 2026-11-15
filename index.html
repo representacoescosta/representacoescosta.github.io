@@ -68,7 +68,7 @@ h1,h2,h3{line-height:1.1;margin:0;text-wrap:balance;font-weight:900}
 .numeros span{font-size:.85rem;font-weight:700;opacity:.9}
 
 /* seções */
-section{padding-block:64px}
+section{padding-block:64px;scroll-margin-top:72px}
 section.cinza{background:var(--cinza-claro)}
 section h2{font-size:clamp(1.9rem,4vw,2.7rem);color:var(--cinza);margin:6px 0 14px}
 .lead{max-width:62ch;color:var(--cinza);font-size:1.05rem;margin:0}
@@ -133,13 +133,50 @@ footer{background:var(--cinza);color:#fff;font-size:.9rem}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) footer{background:#111}}
 footer .wrap{padding-block:22px;display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between;font-weight:600}
 
-.wa{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--wa);color:#fff;font-weight:900;text-decoration:none;padding:13px 20px;border-radius:999px;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.wa.escondido{opacity:0;pointer-events:none;transform:translateY(12px)}
+.wa{transition:opacity .2s,transform .2s;position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--wa);color:#fff;font-weight:900;text-decoration:none;padding:13px 20px;border-radius:999px;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 
+/* botão do menu no celular */
+.menu-bt{display:none;flex:none;width:44px;height:44px;border:2px solid var(--linha);border-radius:12px;background:var(--sup);cursor:pointer;padding:0;flex-direction:column;align-items:center;justify-content:center;gap:5px;margin-left:auto}
+.menu-bt span{display:block;width:20px;height:3px;border-radius:2px;background:var(--cinza)}
+.menu-bt:focus-visible{outline:3px solid var(--laranja);outline-offset:2px}
+/* Costinha */
+.destaque .wrap.com-mascote{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center}
+.mascote-topo{width:clamp(180px,22vw,280px);height:auto;filter:drop-shadow(0 12px 24px rgba(0,0,0,.18))}
+.contato-grid{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end}
+.mascote-contato{width:170px;height:auto}
+/* para indústrias */
+.ind{display:grid;grid-template-columns:1.2fr .8fr;gap:36px;align-items:center}
+.ind-lista{list-style:none;margin:22px 0 26px;padding:0;display:grid;gap:12px}
+.ind-lista li{background:var(--sup);border:1px solid var(--linha);border-left:6px solid var(--laranja);border-radius:14px;padding:14px 16px;color:var(--cinza)}
+.ind-lista b{display:block;color:var(--tinta);font-weight:900}
+.ind .bt.cheio{background:var(--laranja);color:#fff;border-color:var(--laranja)}
+.ind .bt{color:var(--laranja)}
+.ind .bt:focus-visible{outline-color:var(--laranja)}
+.mascote-ind{width:min(300px,100%);height:auto;margin-inline:auto}
 @media (max-width:860px){
-  .menu{display:none}
+  .menu-bt{display:flex}
+  .menu{display:none;position:absolute;left:0;right:0;top:100%;flex-direction:column;gap:0;background:var(--sup);border-bottom:3px solid var(--laranja);box-shadow:0 10px 20px rgba(0,0,0,.12)}
+  .menu.aberto{display:flex}
+  .menu a{padding:14px 20px;border-top:1px solid var(--linha);font-size:1.05rem}
+  .topo .wrap{position:relative;gap:10px}
+  .destaque .wrap.com-mascote{grid-template-columns:1fr}
+  .mascote-topo{width:150px;justify-self:end;margin-top:-10px}
+  .ind{grid-template-columns:1fr}
+  .mascote-ind{width:180px}
+  .contato-grid{grid-template-columns:1fr}
+  .mascote-contato{width:130px;justify-self:end}
   .hist{grid-template-columns:1fr}
   .contatos{grid-template-columns:1fr}
   .numeros{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:480px){
+  .topo .wrap{gap:8px}
+  .marca{gap:8px;min-width:0}
+  .marca img{height:30px}
+  .marca b{font-size:.95rem}
+  .marca small{display:none}
+  .area{padding:7px 12px;font-size:.85rem}
 }
 @media (max-width:600px){.repres{grid-template-columns:1fr}.grade{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
@@ -152,13 +189,15 @@ img.foto-web{width:100%;aspect-ratio:4/3;height:auto;object-fit:cover;object-pos
 <header class="topo">
   <div class="wrap">
     <a class="marca" href="#inicio" aria-label="Representações Costa, início">
-      <img src="img/logo-rc.png" alt="(RC)" width="101" height="40">
+      <img src="img/logo-rc.png" alt="Logo da Representações Costa" width="101" height="40">
       <span><b>Representações Costa</b><small>Representação comercial desde 1998</small></span>
     </a>
-    <nav class="menu" aria-label="Principal">
+    <button class="menu-bt" type="button" aria-expanded="false" aria-controls="menu-principal" aria-label="Abrir menu"><span></span><span></span><span></span></button>
+    <nav class="menu" id="menu-principal" aria-label="Principal">
       <a href="#representadas">Representadas</a>
       <a href="#produtos">Produtos</a>
       <a href="#historia">Nossa história</a>
+      <a href="#industrias">Para indústrias</a>
       <a href="#video">Vídeo</a>
       <a href="#instagram" id="menu-ig" hidden>Instagram</a>
       <a href="#contato">Contato</a>
@@ -200,7 +239,8 @@ img.foto-web{width:100%;aspect-ratio:4/3;height:auto;object-fit:cover;object-pos
   </script>
 
   <div class="destaque">
-    <div class="wrap">
+    <div class="wrap com-mascote">
+     <div>
       <div class="olho">Representação comercial de alimentos · Rio de Janeiro</div>
       <h1>A indústria certa na gôndola do seu mercado</h1>
       <p>Desde 1998 levamos laticínios, frios e carnes de indústrias mineiras aos supermercados, redes associativas e atacarejos do Rio de Janeiro.</p>
@@ -214,6 +254,8 @@ img.foto-web{width:100%;aspect-ratio:4/3;height:auto;object-fit:cover;object-pos
         <div><b>2</b><span>indústrias representadas</span></div>
         <div><b>RJ</b><span>área de atuação</span></div>
       </div>
+     </div>
+      <img class="mascote-topo" src="img/mascote/costinha-aceno.png" alt="Costinha, mascote da Representações Costa, acenando" width="280" height="301">
     </div>
   </div>
 
@@ -256,7 +298,7 @@ img.foto-web{width:100%;aspect-ratio:4/3;height:auto;object-fit:cover;object-pos
         <div class="olho">Nossa história</div>
         <h2>Uma empresa de família no ramo de alimentos</h2>
         <p class="lead">A Representações Costa nasceu em 1998, no Rio de Janeiro, a partir da experiência do nosso sócio-fundador, que soma mais de 50 anos no ramo. Até hoje é uma empresa de família, que conhece cada rede, cada loja e cada comprador.</p>
-        <p class="citacao">Conhecemos cada rede e cada comprador pelo nome. É assim há mais de 25 anos.</p>
+        <p class="citacao">Conhecemos cada rede e cada comprador pelo nome. É assim desde 1998.</p>
       </div>
       <ol class="linha-tempo">
         <li><b>1998</b><span>Fundação da Representações Costa, no Rio de Janeiro, com foco em laticínios.</span></li>
@@ -264,6 +306,27 @@ img.foto-web{width:100%;aspect-ratio:4/3;height:auto;object-fit:cover;object-pos
         <li><b>Clientes</b><span>Supermercados, redes associativas e atacarejos no Rio de Janeiro.</span></li>
         <li><b>Para indústrias</b><span>Procuramos novas marcas para representar no RJ. Fale com a gente.</span></li>
       </ol>
+    </div>
+  </section>
+
+  <section id="industrias">
+    <div class="wrap ind">
+      <div>
+        <div class="olho">Para indústrias</div>
+        <h2>Quer vender no Rio de Janeiro?</h2>
+        <p class="lead">Procuramos indústrias com linhas complementares às que já representamos, que não concorram com GODAM e Frigorífico Sabor de Minas, como frango congelado e cortes de frango.</p>
+        <ul class="ind-lista">
+          <li><b>Prospecção no Rio de Janeiro</b>sem custo fixo de equipe própria.</li>
+          <li><b>Carteira pronta</b>clientes que já compram de nós com frequência, em supermercados, redes associativas e atacarejos.</li>
+          <li><b>Remuneração por resultado</b>comissão sobre o faturado, sem salário, encargos ou frota.</li>
+          <li><b>Conhecimento de cadeia fria</b>refrigerados e congelados, de laticínios a carnes.</li>
+        </ul>
+        <div class="botoes">
+          <a class="bt cheio" href="https://wa.me/5521999426202?text=Ol%C3%A1%2C%20sou%20de%20uma%20ind%C3%BAstria%20e%20quero%20conversar%20sobre%20representa%C3%A7%C3%A3o%20no%20Rio%20de%20Janeiro." target="_blank" rel="noopener">Falar no WhatsApp</a>
+          <a class="bt" href="mailto:representacoescosta@representacoescosta.com.br?subject=Representa%C3%A7%C3%A3o%20no%20Rio%20de%20Janeiro">Mandar e-mail</a>
+        </div>
+      </div>
+      <img class="mascote-ind" src="img/mascote/costinha-pedido.png" alt="Costinha, mascote da Representações Costa, com um pedido" width="300" height="322" loading="lazy">
     </div>
   </section>
 
@@ -298,13 +361,18 @@ img.foto-web{width:100%;aspect-ratio:4/3;height:auto;object-fit:cover;object-pos
   <section id="contato" class="cinza">
     <div class="wrap">
       <div class="olho">Contato</div>
-      <h2>Fale com a gente</h2>
-      <p class="lead">Quer comprar, conhecer o mix ou ser representado por nós? Chame no WhatsApp ou mande um e-mail.</p>
+      <div class="contato-grid">
+        <div>
+          <h2>Fale com a gente</h2>
+          <p class="lead">Quer comprar, conhecer o mix ou ser representado por nós? Chame no WhatsApp ou mande um e-mail.</p>
+        </div>
+        <img class="mascote-contato" src="img/mascote/costinha-obrigado.png" alt="Costinha, mascote da Representações Costa, segurando um coração" width="170" height="183" loading="lazy">
+      </div>
       <div class="contatos">
         <div><b>WhatsApp</b><a class="v" href="https://wa.me/5521999426202" target="_blank" rel="noopener">(21) 99942-6202</a></div>
         <div><b>E-mail</b><a class="v" href="mailto:representacoescosta@representacoescosta.com.br">representacoescosta@representacoescosta.com.br</a></div>
         <div><b>Instagram e Facebook</b><a class="v" href="https://www.instagram.com/representacoescostarj/" target="_blank" rel="noopener">@representacoescostarj</a></div>
-        <div><b>Escritório Rio de Janeiro</b><span class="v">Rua da Batata, 114 – Rio de Janeiro – RJ</span></div>
+        <div><b>Escritório Rio de Janeiro</b><span class="v">Rua da Batata, 104, boxes 08 e 10 – Rio de Janeiro – RJ</span></div>
         <div><b>Sede</b><span class="v">Av. Presidente Castelo Branco, 66 – Sala 303, Centro, Rio Bonito – RJ</span></div>
         <div><b>CNPJ</b><span class="v">02.584.938/0001-21</span></div>
       </div>
@@ -406,6 +474,31 @@ const DESTAQUES = [
     s.async = true; s.src = "https://www.instagram.com/embed.js";
     document.body.appendChild(s);
   }
+})();
+
+/* Menu no celular */
+(function(){
+  const bt = document.querySelector(".menu-bt"), nav = document.getElementById("menu-principal");
+  if (!bt || !nav) return;
+  const fechar = () => { nav.classList.remove("aberto"); bt.setAttribute("aria-expanded","false"); bt.setAttribute("aria-label","Abrir menu"); };
+  bt.addEventListener("click", () => {
+    const abrir = !nav.classList.contains("aberto");
+    nav.classList.toggle("aberto", abrir);
+    bt.setAttribute("aria-expanded", String(abrir));
+    bt.setAttribute("aria-label", abrir ? "Fechar menu" : "Abrir menu");
+  });
+  nav.addEventListener("click", e => { if (e.target.closest("a")) fechar(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") fechar(); });
+})();
+
+/* Botão flutuante do WhatsApp: no celular só aparece depois do topo, para não cobrir os números */
+(function(){
+  const wa = document.querySelector(".wa"), topo = document.querySelector(".destaque");
+  if (!wa || !topo || !("IntersectionObserver" in window)) return;
+  const celular = window.matchMedia("(max-width:860px)");
+  new IntersectionObserver(([e]) => {
+    wa.classList.toggle("escondido", celular.matches && e.isIntersecting);
+  }).observe(topo);
 })();
 
 const abas = document.querySelector(".abas");
