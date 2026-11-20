@@ -1,8 +1,9 @@
-/* Sistema RC — Pedidos: gestão e cancelamento (20/11/2026, v1).
+/* Sistema RC — Pedidos: gestão e cancelamento (20/11/2026, v1; v2 20/11/2026: pedidos da planilha também — migração 54).
    Regra do Eric (20/11): cancelar sempre com confirmação; o status muda para "cancelado" e quem cancelou fica
    arquivado com a observação do motivo.
    API: api-pedidos "pedidos-gestao" (lista) e "cancelar-pedido" ({ pedido_id, versao, motivo }).
-   Só pedidos lançados no sistema novo (os da planilha são regravados pela sincronia) e antes do faturamento.
+   Antes do faturamento. v2 (regra do Eric, 20/11 18:10: "vindo de planilha, cancela pelo sistema"): pedidos da planilha
+   dos últimos 60 dias também aparecem; o cancelamento vai para a planilha pela sincronia (RC Rotinas, até 30 min).
    Segurança: quem pode cancelar é decidido no servidor (permissão pedido.cancelar); motivo conferido aqui (5 a 500)
    e de novo no servidor; versão do pedido conferida (dois gestores ao mesmo tempo); tudo que vem da API entra como
    texto (textContent), nunca como HTML; ids só uuid; sem janelas do navegador (alert/confirm). */
@@ -11,7 +12,7 @@
   var API = "https://fufwenjnnsvxdgnenpch.supabase.co/functions/v1/api-pedidos/";
   var CHAVE_SESSAO = "rc_sessao";
   var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-  var RECARREGA = { conflito: 1, nao_encontrado: 1, ja_cancelado: 1, ja_faturado: 1, pedido_da_planilha: 1 };
+  var RECARREGA = { conflito: 1, nao_encontrado: 1, ja_cancelado: 1, ja_faturado: 1, pedido_da_planilha: 1, sugestao_da_planilha: 1 };
   var STATUS = { sugestao: "Sugestão", sugestao_confirmada: "Sugestão confirmada", novo: "Novo", aguardando_preco: "Aguardando preço",
     enviado: "Enviado à representada", faturado: "Faturado", cancelado: "Cancelado" };
   var palco = document.getElementById("palco");
@@ -71,7 +72,7 @@
       var topo = el("section", { class: "cartao" },
         el("div", { class: "acoes", style: "justify-content:space-between;align-items:center" },
           el("h1", { text: "Pedidos" }), el("button", { type: "button", class: "sec", text: "Atualizar", onclick: function () { carregar(); } })),
-        el("p", { class: "dica", text: "Pedidos lançados no sistema novo que ainda não foram faturados. Os pedidos da planilha continuam sendo cancelados na planilha." }));
+        el("p", { class: "dica", text: "Pedidos dos últimos 60 dias que ainda não foram faturados (sistema novo e planilha). Pedido da planilha cancelado aqui vai para a planilha em até 30 minutos." }));
       if (aviso) topo.append(el("p", { class: "msg " + aviso[1], role: "status", text: aviso[0] }));
       palco.replaceChildren(topo);
 
@@ -87,7 +88,8 @@
         listaC.append(el("div", { class: "item cancelado" },
           el("div", { class: "t" }, txt(c.pedido) + " · " + txt(c.representada), el("span", { class: "selo", text: "Cancelado" })),
           el("div", { class: "v", text: txt(c.cancelado_em) }),
-          el("div", { class: "s", text: txt(c.cliente) + " · era: " + status(c.status_anterior) + " · por " + (txt(c.cancelado_por) || "—") }),
+          el("div", { class: "s", text: txt(c.cliente) + " · era: " + status(c.status_anterior) + " · por " + (txt(c.cancelado_por) || "—") +
+            (c.na_planilha === false ? " · aguardando a planilha" : c.na_planilha === true ? " · planilha atualizada" : "") }),
           el("div", { class: "s motivo", text: txt(c.motivo) })));
       });
       palco.append(el("section", { class: "cartao" }, el("h2", { text: "Cancelados (arquivo)" }), listaC));
@@ -115,7 +117,7 @@
         chamar("cancelar-pedido", { pedido_id: pid, versao: p.versao, motivo: t }).then(function (r) {
           confirmar.disabled = false; desistir.disabled = false;
           if (r._http === 401) return semSessao();
-          if (r.ok) return carregar([txt(p.pedido) + " cancelado. O motivo ficou registrado no histórico do pedido.", "ok"]);
+          if (r.ok) return carregar([txt(p.pedido) + " cancelado. O motivo ficou registrado no histórico do pedido." + (r.planilha ? " A planilha é atualizada na próxima sincronia (até 30 minutos)." : ""), "ok"]);
           if (RECARREGA[r.codigo]) return carregar([txt(p.pedido) + ": " + (r.erro || "o pedido mudou.") + " A lista foi atualizada.", "erro"]);
           msg(m, r.erro || "Não foi possível cancelar.", "erro");
         });
@@ -129,7 +131,8 @@
     }
     function fechar() { aberto = null; area.replaceChildren(); botao.hidden = false; msg(m, ""); }
     var cartao = el("div", { class: "item", style: "grid-template-columns:1fr auto" },
-      el("div", { class: "t" }, txt(p.pedido) + " · " + txt(p.representada), el("span", { class: "selo pend", text: status(p.status) })),
+      el("div", { class: "t" }, txt(p.pedido) + " · " + txt(p.representada), el("span", { class: "selo pend", text: status(p.status) }),
+        p.origem === "planilha" ? el("span", { class: "selo", text: "Planilha" }) : null),
       el("div", { class: "v", text: moeda(p.total_valor) }),
       el("div", { class: "s", text: txt(p.cliente) }),
       el("div", { class: "s", text: ["Vendedor: " + (txt(p.vendedor) || "—"), "Lançado em " + txt(p.lancado_em), p.total_caixas != null ? String(p.total_caixas) + " cx" : ""].filter(Boolean).join(" · ") }),
