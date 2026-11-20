@@ -169,6 +169,14 @@
       el("section", { class: "cartao" }, total, lista, mais));
     buscar(false);
   }
+  // "Como chegar" (20/11/2026): só abre link de rota do Google Maps montado pelo servidor (rc._api_endereco); o endereço entra como texto.
+  function rotaSegura(u) { return typeof u === "string" && u.indexOf("https://www.google.com/maps/dir/?api=1&") === 0 && u.length < 600 ? u : null; }
+  function blocoEndereco(end) {
+    if (!end || typeof end !== "object" || !end.texto) return null;
+    var u = rotaSegura(end.rota);
+    return el("div", { class: "acoes", style: "align-items:center;grid-column:1/-1" }, el("span", { class: "dica", text: String(end.texto) }),
+      u ? el("a", { href: u, target: "_blank", rel: "noopener noreferrer", class: "rota", text: "🧭 Como chegar" }) : null);
+  }
   function itemCarteira(l, editavel) {
     var vend = [["Loja", l.vendedor_loja], ["Rede de lojas", l.vendedor_rede_lojas], ["Rede associativa", l.vendedor_rede_associativa]]
       .filter(function (v) { return txt(v[1]); }).map(function (v) { return v[0] + ": " + txt(v[1]); }).join(" · ");
@@ -177,7 +185,8 @@
       el("div", { class: "s" }, txt(l.representada) + " · código " + (l.codigo_na_representada || "—"),
         l.codigo_gerado ? el("span", { class: "selo gerado", text: "gerado" }) : null),
       el("div", { class: "s", text: (vend || "Sem vendedor") + " · " + (NOME_SIT[l.situacao] || l.situacao) }),
-      el("div", { class: "s", text: [l.bairro, l.cidade, l.uf].filter(Boolean).join(" · ") + (l.desde ? "  ·  desde " + l.desde : "") + (l.ate ? " até " + l.ate : "") }));
+      el("div", { class: "s", text: [l.bairro, l.cidade, l.uf].filter(Boolean).join(" · ") + (l.desde ? "  ·  desde " + l.desde : "") + (l.ate ? " até " + l.ate : "") }),
+      blocoEndereco(l.endereco));
     if (editavel && !l.ate) {
       var b = el("button", { type: "button", class: "sec", text: "Alterar vínculo" });
       b.addEventListener("click", function () { b.remove(); it.append(formVinculoEditar(l)); });
@@ -338,8 +347,10 @@
       trava(b, true); msg(m, "Salvando…");
       chamar("vincular-cliente", { cliente_id: idDe(r.cliente), vinculo: vin }).then(function (x) { trava(b, false); resultadoGravacao(m, x); });
     });
+    var endFicha = null;
+    if (r.ficha && Array.isArray(r.ficha.campos)) r.ficha.campos.forEach(function (x) { if (x && x.campo === "endereco" && x.valor && x.valor.tipo === "endereco") endFicha = x.valor; });
     return el("section", { class: "cartao" }, el("h2", null, "Já é cliente da RC: " + txt(r.cliente), el("span", { class: "selo", text: r.codigo_rc })),
-      r.razao_social ? el("p", { class: "dica", text: r.razao_social }) : null, lv,
+      r.razao_social ? el("p", { class: "dica", text: r.razao_social }) : null, blocoEndereco(endFicha), lv,
       el("h2", { text: "Acrescentar representada" }), v.bloco, el("div", { class: "acoes" }, b), m);
   }
   function clienteFora(doc) {

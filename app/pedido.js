@@ -319,6 +319,26 @@
     F.cliente_id = id; ATUAL = null; salvarRascunho(); trocarCartaoCliente(); desenharItem(); desenharItens();
   }
 
+  // "Como chegar" (20/11/2026): só abre link de rota do Google Maps montado pelo servidor (rc._api_endereco); o endereço entra como texto.
+  function rotaSegura(u) { return typeof u === "string" && u.indexOf("https://www.google.com/maps/dir/?api=1&") === 0 && u.length < 600 ? u : null; }
+  function blocoEndereco(end) {
+    if (!end || typeof end !== "object" || !end.texto) return null;
+    var u = rotaSegura(end.rota);
+    return el("div", { class: "acoes", style: "align-items:center;grid-column:1/-1" }, el("span", { class: "dica", text: String(end.texto) }),
+      u ? el("a", { href: u, target: "_blank", rel: "noopener noreferrer", class: "rota", text: "🧭 Como chegar" }) : null);
+  }
+  var ENDERECOS = {};   // cliente_id -> endereço da ficha (com rota); buscado ao escolher o cliente
+  function carregarEndereco(cid) {
+    if (!cid || ENDERECOS[cid] !== undefined) return;
+    ENDERECOS[cid] = null;
+    chamar("api-fichas", "ficha", { tipo: "cliente", id: cid }).then(function (r) {
+      var e = null;
+      if (r && r.ok !== false && Array.isArray(r.campos)) r.campos.forEach(function (x) { if (x && x.campo === "endereco" && x.valor && x.valor.tipo === "endereco") e = x.valor; });
+      ENDERECOS[cid] = e || false;
+      var lugar = $("enderecoCliente");
+      if (lugar && F && F.cliente_id === cid) lugar.replaceChildren(blocoEndereco(e) || el("span", { class: "dica", text: "Endereço não cadastrado." }));
+    });
+  }
   function cartaoCliente() {
     var c = el("section", { class: "cartao", id: "cartaoCliente" }, el("h2", null, el("span", { class: "n", text: "2" }), "Cliente"));
     var cli = F.cliente_id && P.dados.cliente[F.cliente_id];
@@ -326,7 +346,10 @@
       c.append(el("div", { class: "item" },
         el("div", { class: "t", text: cli.nome_referencia || cli.razao_social || "" }),
         el("div", { class: "v" }, el("button", { type: "button", class: "lixo", text: "Trocar", onclick: function () { escolherCliente(null); } })),
-        el("div", { class: "s", text: [cli.codigo_rc, cli.cnpj_cpf].filter(Boolean).join(" · ") })));
+        el("div", { class: "s", text: [cli.codigo_rc, cli.cnpj_cpf].filter(Boolean).join(" · ") }),
+        el("div", { id: "enderecoCliente", style: "grid-column:1/-1" }, ENDERECOS[cli.id] ? blocoEndereco(ENDERECOS[cli.id]) :
+          ENDERECOS[cli.id] === false ? el("span", { class: "dica", text: "Endereço não cadastrado." }) : el("span", { class: "dica", text: "Carregando o endereço…" }))));
+      carregarEndereco(cli.id);
       if (/^inativo$/i.test(cli.status_rc || "")) c.append(el("div", { class: "aviso erro", text: "Cliente inativo: não recebe pedido." }));
       var vs = vinculosDoCliente(cli.id);
       if (!vs.length) c.append(el("div", { class: "aviso erro", text: "Cliente sem representada vigente na sua carteira." }));
