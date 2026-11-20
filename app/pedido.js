@@ -91,6 +91,7 @@
     }, function () { return { ok: false, _http: 0, erro: "Sem conexão." }; });
   }
   function semSessao() {
+    TELA = "sessao";
     $("rodape").hidden = true;
     palco.replaceChildren(el("section", { class: "cartao" }, el("h1", { text: "Sessão encerrada" }),
       el("p", { text: "Entre de novo para continuar. O pedido que estava sendo montado fica guardado nesta aba, e os da fila neste aparelho." }),
@@ -279,6 +280,7 @@
 
   /* ---------- tela do pedido ---------- */
   function telaPedido() {
+    TELA = "pedido";
     palco.replaceChildren();
     // 1. Pedido
     var pc = el("input", { autocomplete: "off", maxlength: "40", placeholder: "Ex.: 3807722/L (se o cliente tiver)" }); pc.value = F.numero_pedido_cliente;
@@ -393,6 +395,7 @@
   function trocarCartaoCliente() { var a = $("cartaoCliente"); if (a) a.replaceWith(cartaoCliente()); atualizarRodape(); }
 
   var ATUAL = null; // produto escolhido no cartão de item
+  var TELA = "";     // pedido | revisar | enviado | sessao (para o botão Voltar)
   function desenharItem() {
     var c = $("cartaoItem"); if (!c) return;
     c.replaceChildren(el("h2", null, el("span", { class: "n", text: "3" }), "Item"));
@@ -547,6 +550,7 @@
   function telaRevisar() {
     var pb = problemas();
     if (pb.length) { alertaTopo(pb.join(" "), "erro"); return; }
+    TELA = "revisar";
     $("rodape").hidden = true;
     var cli = P.dados.cliente[F.cliente_id], reps = representadasDoPedido(), tg = resumo(null);
     var conf = null, m = el("p", { class: "msg" });
@@ -678,6 +682,7 @@
     return c;
   }
   function telaDepoisDoEnvio(grupo) {
+    TELA = "enviado";
     var q = fila().filter(function (x) { return x.grupo === grupo; }), ok = enviados().filter(function (x) { return x.grupo === grupo; });
     var pend = q.filter(function (x) { return x.estado === "aguardando"; }), rec = q.filter(function (x) { return x.estado === "recusado"; });
     var c = el("section", { class: "cartao" });
@@ -697,6 +702,13 @@
 
   /* ---------- início ---------- */
   $("revisar").addEventListener("click", telaRevisar);
+  // Voltar: da conferência ou da tela de enviado volta ao pedido; com um produto aberto, fecha o produto;
+  // no pedido, volta ao menu do Sistema RC (o rascunho fica guardado nesta aba).
+  $("voltar").addEventListener("click", function () {
+    if (F && P && (TELA === "revisar" || TELA === "enviado")) { telaPedido(); window.scrollTo(0, 0); return; }
+    if (F && P && TELA === "pedido" && ATUAL) { ATUAL = null; desenharItem(); return; }
+    location.href = "entrar.html";
+  });
   window.addEventListener("online", function () { enviarFila(); });
 
   function iniciar() {

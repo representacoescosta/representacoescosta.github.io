@@ -51,10 +51,11 @@ button:disabled{opacity:.6;cursor:wait}
 table{width:100%;border-collapse:collapse;font-size:.9rem} th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--linha)} th{font-weight:900}
 .rolar{overflow-x:auto}
 [hidden]{display:none!important}
+.topo .voltar{background:transparent;color:var(--laranja);border:2px solid var(--laranja);border-radius:10px;padding:6px 10px;font:inherit;font-weight:900;font-size:.9rem;cursor:pointer;white-space:nowrap}
 </style>
 </head>
 <body>
-<header class="topo"><div class="in"><img src="../img/logo-rc.png" alt="(RC)" width="76" height="30"><b>Sistema RC · <span>Cadastros</span></b><span class="cresce"></span><a href="entrar.html">Conta</a></div></header>
+<header class="topo"><div class="in"><button type="button" class="voltar" id="voltar" aria-label="Voltar">‹ Voltar</button><img src="../img/logo-rc.png" alt="(RC)" width="76" height="30"><b>Sistema RC · <span>Cadastros</span></b><span class="cresce"></span><a href="entrar.html">Conta</a></div></header>
 <nav class="abas" role="tablist" aria-label="Cadastros">
   <button type="button" role="tab" data-aba="carteira" aria-selected="true">Carteira</button>
   <button type="button" role="tab" data-aba="cliente" aria-selected="false">Cliente</button>
@@ -63,6 +64,6 @@ table{width:100%;border-collapse:collapse;font-size:.9rem} th,td{text-align:left
   <button type="button" role="tab" data-aba="tabelas" aria-selected="false">Tabelas de preço</button>
 </nav>
 <main id="palco"><p class="dica">Carregando…</p></main>
-<script src="cadastros.js?v=1"></script>
+<script src="cadastros.js?v=2"></script>
 </body>
 </html>

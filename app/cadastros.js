@@ -99,11 +99,25 @@
   document.querySelectorAll("nav.abas button").forEach(function (b) {
     b.addEventListener("click", function () { if (O) abrir(b.dataset.aba); });
   });
-  function abrir(aba) {
+  // Voltar: com um detalhe aberto (ficha, formulário, tabela), fecha o detalhe e reabre a aba; senão volta para a
+  // aba anterior; na primeira aba, volta para o menu do Sistema RC (Entrar).
+  var ABA = null, HISTORICO = [], DETALHE = false;
+  function abrir(aba, semHistorico) {
+    if (!ABAS[aba]) return;
+    if (!semHistorico && ABA && ABA !== aba) HISTORICO.push(ABA);
+    if (HISTORICO.length > 20) HISTORICO.shift();
+    ABA = aba;
     document.querySelectorAll("nav.abas button").forEach(function (b) { b.setAttribute("aria-selected", b.dataset.aba === aba ? "true" : "false"); });
     palco.replaceChildren();
     ABAS[aba]();
+    DETALHE = false;
+    window.scrollTo(0, 0);
   }
+  document.getElementById("voltar").addEventListener("click", function () {
+    if (O && ABA && DETALHE) return abrir(ABA, true);
+    if (O && HISTORICO.length) return abrir(HISTORICO.pop(), true);
+    location.href = "entrar.html";
+  });
   function recarregarOpcoes() {
     return chamar("opcoes", {}).then(function (r) { if (r && r.ok) O = r.opcoes; return r; });
   }
@@ -172,6 +186,7 @@
     return it;
   }
   function formVinculoEditar(l) {
+    DETALHE = true;   // botão Voltar fecha este detalhe
     var orig = { codigo_na_representada: l.codigo_na_representada, vendedor_loja_id: idDe(l.vendedor_loja), vendedor_rede_lojas_id: idDe(l.vendedor_rede_lojas),
       vendedor_rede_associativa_id: idDe(l.vendedor_rede_associativa), situacao_carteira: l.situacao };
     var f = {
@@ -216,6 +231,7 @@
 
   /* ---------- Cliente (novo ou nova representada para cliente que já existe) ---------- */
   function formVinculo() {
+    DETALHE = true;   // botão Voltar fecha este detalhe
     var f = {
       representada_id: opcoesSel(listaReps(), "Escolha", null),
       codigo_na_representada: entrada("text", null, { maxlength: 30, placeholder: "Vazio = o sistema gera (prefixo + número)" }),
@@ -243,7 +259,7 @@
       chamar("cliente-por-documento", { cnpj_cpf: d }).then(function (r) {
         trava(b, false);
         if (!r || !r.ok) return msg(m, erroTexto(r), "erro");
-        msg(m, "");
+        msg(m, ""); DETALHE = true;
         if (!r.existe) area.append(formClienteNovo(r.cnpj_cpf));
         else if (r.na_sua_carteira) area.append(clienteExistente(r));
         else area.append(clienteFora(d));
@@ -265,6 +281,7 @@
       (r.codigo_na_representada ? " · código na representada " + r.codigo_na_representada + (r.codigo_gerado ? " (gerado pelo sistema)" : "") : "") + ".", "ok");
   }
   function formClienteNovo(docLimpo) {
+    DETALHE = true;   // botão Voltar fecha este detalhe
     var c = {
       nome_referencia: entrada("text", null, { maxlength: 120 }), razao_social: entrada("text", null, { maxlength: 200 }),
       nome_fantasia: entrada("text", null, { maxlength: 200 }), inscricao_estadual: entrada("text", null, { maxlength: 20 }),
@@ -356,6 +373,7 @@
     desenhar();
   }
   function formRepresentada(r, depois) {
+    DETALHE = true;   // botão Voltar fecha este detalhe
     var o = r || {};
     var f = {
       nome_referencia: entrada("text", o.nome, { maxlength: 120 }), razao_social: entrada("text", o.razao_social, { maxlength: 200 }),
@@ -442,6 +460,7 @@
     palco.append(el("section", { class: "cartao" }, el("h1", { text: "Produtos" }), campo("Representada", rep), el("div", { class: "acoes" }, nova), m, lista), area);
   }
   function abrirProduto(id, repId, area) {
+    DETALHE = true;   // botão Voltar fecha este detalhe
     chamar("produto-ficha", { id: id }).then(function (r) {
       if (!r || !r.ok) return area.replaceChildren(el("p", { class: "msg erro", text: erroTexto(r) }));
       var fi = r.ficha, sec = el("section", { class: "cartao" }, el("h2", { text: fi.titulo }));
@@ -459,6 +478,7 @@
     });
   }
   function formBloco(fi, bloco, vals, repId, depois) {
+    DETALHE = true;   // botão Voltar fecha este detalhe
     var def = BLOCOS[bloco], f = {}, orig = {};
     def[1].forEach(function (d) {
       var v = vals[d[0]];
@@ -507,6 +527,7 @@
     desenhar();
   }
   function formTabela(depois, area) {
+    DETALHE = true;   // botão Voltar fecha este detalhe
     var f = { representada_id: opcoesSel(listaReps(), "Escolha", null), nome: entrada("text", null, { maxlength: 120 }),
       tipo: opcoesSel([["padrao","Padrão"],["negociada","Negociada"]], null, "padrao"), uf: opcoesSel(UFS.map(function (u) { return [u, u]; }), "—", null),
       vigencia_inicio: entrada("date"), vigencia_fim: entrada("date") };
@@ -553,6 +574,7 @@
       grupo, el("div", { class: "acoes" }, b), m);
   }
   function abrirTabela(id, area) {
+    DETALHE = true;   // botão Voltar fecha este detalhe
     chamar("tabela", { id: id, limite: 200 }).then(function (r) {
       if (!r || !r.ok) return area.replaceChildren(el("p", { class: "msg erro", text: erroTexto(r) }));
       var t = r.tabela, tb = el("table", null, el("tr", null, ["Produto", "Código", "Tipo", "Unidade", "Caixa", "R$/kg", "Caixa aprox. (prev./arred.)", "Desde"].map(function (h) { return el("th", { text: h }); })));
@@ -574,6 +596,7 @@
     });
   }
   function formPrecos(t, lugar, depois) {
+    DETALHE = true;   // botão Voltar fecha este detalhe
     var repId = idDe(t.representada), atuais = {};
     t.linhas.forEach(function (l) { atuais[idDe(l.produto)] = l; });
     chamar("lista", { tipo: "representada", id: repId, aba: "produtos", limite: 100 }).then(function (r) {
