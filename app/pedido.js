@@ -26,7 +26,6 @@
 
   var palco = document.getElementById("palco");
   var PERFIL = null, NOME = "";
-  var MEU_ID = null;            // id do usuário da sessão (api-rc "sessao"); vendedor só lança onde é o vendedor da loja
   var PERMISSOES = {};          // códigos de permissão da sessão (api-rc "sessao"); sem sessão confirmada fica vazio
   var P = null;                 // pacote do dia: { dados: {tabela: {id: linha}}, cursores: {tabela: {em,id}}, em }
   var F = null;                 // rascunho do pedido
@@ -92,7 +91,6 @@
     }, function () { return { ok: false, _http: 0, erro: "Sem conexão." }; });
   }
   function semSessao() {
-    TELA = "sessao";
     $("rodape").hidden = true;
     palco.replaceChildren(el("section", { class: "cartao" }, el("h1", { text: "Sessão encerrada" }),
       el("p", { text: "Entre de novo para continuar. O pedido que estava sendo montado fica guardado nesta aba, e os da fila neste aparelho." }),
@@ -158,16 +156,11 @@
   }
   // Vínculos que contam para pedido: vigentes, não "fechou", da representada existente; vendedor só os com vendedor
   // (a RLS já entrega só a carteira dele); gestor também os sem vendedor (para cadastrar).
-  // Regra do Eric (20/11/2026): quem não é gestor só lança pedido onde é o vendedor da LOJA. Como vendedor da rede
-  // de lojas ou da associativa ele só acompanha (vê os pedidos nas fichas), então o cliente não entra no "Fazer pedido".
-  // O servidor confere a mesma regra (rc.api_enviar_pedido); sem o id da sessão a tela não filtra e o servidor decide.
-  function lancaNoVinculo(v) { return ehGestor() || !MEU_ID || (v && v.vendedor_loja_id === MEU_ID); }
   function vinculosDoCliente(clienteId) {
     var d = hoje(), por = {};
     lista("cliente_representada").forEach(function (v) {
       if (v.cliente_id !== clienteId || !vigente(v, d) || v.situacao_carteira === "fechou" || !P.dados.representada[v.representada_id]) return;
       if (!temVendedor(v) && !ehGestor()) return;
-      if (!lancaNoVinculo(v)) return;
       var a = por[v.representada_id];
       if (!a || String(v.vigencia_inicio || "") > String(a.vigencia_inicio || "")) por[v.representada_id] = v;
     });
@@ -178,7 +171,7 @@
     var d = hoje(), ids = {};
     lista("cliente_representada").forEach(function (v) {
       if (!vigente(v, d) || v.situacao_carteira === "fechou" || !P.dados.representada[v.representada_id]) return;
-      if ((temVendedor(v) || ehGestor()) && lancaNoVinculo(v)) ids[v.cliente_id] = 1;
+      if (temVendedor(v) || ehGestor()) ids[v.cliente_id] = 1;
     });
     return Object.keys(ids).map(function (id) { return P.dados.cliente[id]; }).filter(Boolean);
   }
@@ -286,7 +279,6 @@
 
   /* ---------- tela do pedido ---------- */
   function telaPedido() {
-    TELA = "pedido";
     palco.replaceChildren();
     // 1. Pedido
     var pc = el("input", { autocomplete: "off", maxlength: "40", placeholder: "Ex.: 3807722/L (se o cliente tiver)" }); pc.value = F.numero_pedido_cliente;
@@ -401,7 +393,6 @@
   function trocarCartaoCliente() { var a = $("cartaoCliente"); if (a) a.replaceWith(cartaoCliente()); atualizarRodape(); }
 
   var ATUAL = null; // produto escolhido no cartão de item
-  var TELA = "";     // pedido | revisar | enviado | sessao (para o botão Voltar)
   function desenharItem() {
     var c = $("cartaoItem"); if (!c) return;
     c.replaceChildren(el("h2", null, el("span", { class: "n", text: "3" }), "Item"));
@@ -556,7 +547,6 @@
   function telaRevisar() {
     var pb = problemas();
     if (pb.length) { alertaTopo(pb.join(" "), "erro"); return; }
-    TELA = "revisar";
     $("rodape").hidden = true;
     var cli = P.dados.cliente[F.cliente_id], reps = representadasDoPedido(), tg = resumo(null);
     var conf = null, m = el("p", { class: "msg" });
@@ -688,7 +678,6 @@
     return c;
   }
   function telaDepoisDoEnvio(grupo) {
-    TELA = "enviado";
     var q = fila().filter(function (x) { return x.grupo === grupo; }), ok = enviados().filter(function (x) { return x.grupo === grupo; });
     var pend = q.filter(function (x) { return x.estado === "aguardando"; }), rec = q.filter(function (x) { return x.estado === "recusado"; });
     var c = el("section", { class: "cartao" });
@@ -708,22 +697,13 @@
 
   /* ---------- início ---------- */
   $("revisar").addEventListener("click", telaRevisar);
-  // Voltar: da conferência ou da tela de enviado volta ao pedido; com um produto aberto, fecha o produto;
-  // no pedido, volta ao menu do Sistema RC (o rascunho fica guardado nesta aba).
-  $("voltar").addEventListener("click", function () {
-    if (F && P && (TELA === "revisar" || TELA === "enviado")) { telaPedido(); window.scrollTo(0, 0); return; }
-    if (F && P && TELA === "pedido" && ATUAL) { ATUAL = null; desenharItem(); return; }
-    location.href = "entrar.html";
-  });
   window.addEventListener("online", function () { enviarFila(); });
 
   function iniciar() {
     if (!token()) return semSessao();
     chamar("api-rc", "sessao", {}).then(function (s) {
-      if (!s || !s.ok) { if (s && s._http === 0) { var g = ler(sessionStorage, "rc_meu_id_v1", null); MEU_ID = UUID.test(g || "") ? g : null; return iniciarComPacote(null); } return semSessao(); }
+      if (!s || !s.ok) { if (s && s._http === 0) return iniciarComPacote(null); return semSessao(); }
       PERFIL = s.perfil; NOME = s.nome || "";
-      MEU_ID = UUID.test(s.id || "") ? s.id : null;
-      if (MEU_ID) gravar(sessionStorage, "rc_meu_id_v1", MEU_ID); else { try { sessionStorage.removeItem("rc_meu_id_v1"); } catch (e) {} }
       PERMISSOES = {};
       if (Array.isArray(s.permissoes)) s.permissoes.forEach(function (c) { if (typeof c === "string" && /^[a-z_]+\.[a-z_]+$/.test(c)) PERMISSOES[c] = 1; });
       carregarUsuarios().then(function () { if (F && !ATUAL && $("cartaoCliente")) trocarCartaoCliente(); });   // em paralelo: não atrasa a abertura

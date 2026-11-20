@@ -125,8 +125,5 @@
       el("div", { class: "acoes" }, botao), m);
   }
 
-  // Voltar: esta tela não tem etapas; volta para o menu do Sistema RC (Entrar).
-  document.getElementById("voltar").addEventListener("click", function () { location.href = "entrar.html"; });
-
   if (!token()) semSessao(); else carregar();
 })();
