@@ -68,13 +68,14 @@ td.num,th.num{text-align:right;white-space:nowrap}
 .rolar{overflow-x:auto}
 [hidden]{display:none!important}
 @media (max-width:520px){.duas{grid-template-columns:1fr}}
+.topo .voltar{background:transparent;color:var(--laranja);border:2px solid var(--laranja);border-radius:10px;padding:6px 10px;font:inherit;font-weight:900;font-size:.9rem;cursor:pointer;white-space:nowrap}
 </style>
 </head>
 <body>
-<header class="topo"><div class="in"><img src="../img/logo-rc.png" alt="(RC)" width="76" height="30"><b>Sistema RC · <span>Fazer pedido</span></b><span class="cresce"></span><a href="cadastros.html">Cadastros</a><a href="entrar.html">Conta</a></div></header>
+<header class="topo"><div class="in"><button type="button" class="voltar" id="voltar" aria-label="Voltar">‹ Voltar</button><img src="../img/logo-rc.png" alt="(RC)" width="76" height="30"><b>Sistema RC · <span>Fazer pedido</span></b><span class="cresce"></span><a href="cadastros.html">Cadastros</a><a href="entrar.html">Conta</a></div></header>
 <div class="estado" id="estado"><span id="pacote">Preparando os dados do dia…</span><span class="fila" id="fila" hidden></span></div>
 <main id="palco"><p class="dica">Carregando…</p></main>
 <div class="rodape" id="rodape" hidden><div class="in"><div class="tot" id="totais"></div><button type="button" id="revisar">Revisar e enviar</button></div></div>
-<script src="pedido.js?v=3"></script>
+<script src="pedido.js?v=5"></script>
 </body>
 </html>

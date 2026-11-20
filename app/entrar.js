@@ -25,6 +25,11 @@
   function lida() { try { return sessionStorage.getItem(CHAVE); } catch (e) { return null; } }
   function esquecer() { try { sessionStorage.removeItem(CHAVE); } catch (e) {} }
   function mostrar(n) { ["passo1", "passo2", "passo3"].forEach(function (p, i) { $(p).hidden = i !== n - 1; }); }
+  // Voltar: da etapa do código volta para e-mail e senha; nas outras, volta para o site.
+  $("voltar").addEventListener("click", function () {
+    if (!$("passo2").hidden) { tokenCodigo = null; $("codigo").value = ""; msg($("m2"), ""); return mostrar(1); }
+    location.href = "../";
+  });
   function trava(b, sim) { ocupado = sim; b.disabled = sim; }
   function mostrarBotoes(permissoes) {
     var tem = {};
