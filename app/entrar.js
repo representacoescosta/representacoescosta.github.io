@@ -8,7 +8,7 @@
   var API = "https://fufwenjnnsvxdgnenpch.supabase.co/functions/v1/api-rc/";
   var CHAVE = "rc_sessao", PERFIS = { administrador: "Administrador", gestor: "Gestor", vendedor: "Vendedor", backoffice: "Escritório", leitura: "Consulta" };
   // Botão da tela -> permissão necessária (rc.permissao.codigo)
-  var BOTOES = { irPedido: "pedido.criar", irPrecos: "preco.ajustar" };
+  var BOTOES = { irPedido: "pedido.criar", irPrecos: "preco.ajustar", irGestao: "pedido.cancelar" };
   var tokenCodigo = null, ocupado = false;
   var $ = function (id) { return document.getElementById(id); };
 
