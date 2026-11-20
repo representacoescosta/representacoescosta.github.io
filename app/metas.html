@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Sistema RC — Metas (20/11/2026, v1): meta × faturado por vendedor → cliente → produto, em kg ou caixas,
+     com o esperado pela regra 60/40 dos dias úteis (mesmas regras do App RC).
+     Segurança: só scripts do próprio site; só conversa com a API do Sistema RC; a sessão fica só nesta aba;
+     tudo que vem da API entra como texto (nunca HTML). Quem vê o quê é decidido no servidor (vendedor só vê o dele). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://fufwenjnnsvxdgnenpch.supabase.co; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#FE5000">
+<title>Metas · Sistema RC</title>
+<link rel="icon" href="../img/logo-rc.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap">
+<style>
+:root{--laranja:#FE5000;--cinza:#666;--tinta:#2B2B2B;--fundo:#F4F3F2;--sup:#FFF;--linha:#E2E2E2;--erro:#B3261E;--ok:#1E8E3E;--aviso:#8A5A00;
+  --fonte:"Nunito","Arial Rounded MT Bold","Segoe UI",Arial,sans-serif}
+@media (prefers-color-scheme: dark){:root{--fundo:#141312;--sup:#242424;--tinta:#F2F2F2;--cinza:#B3B3B3;--linha:#3A3A3A;--erro:#F2B8B5;--ok:#7CD992;--aviso:#F5C26B;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fundo);color:var(--tinta);font-family:var(--fonte);font-weight:600;line-height:1.45}
+.topo{background:var(--sup);border-bottom:3px solid var(--laranja);position:sticky;top:0;z-index:5}
+.topo .in{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:10px;padding:10px 16px}
+.topo img{height:30px;width:auto}
+.topo b{font-weight:900;color:var(--cinza);white-space:nowrap} .topo b span{color:var(--laranja)}
+.topo .cresce{flex:1} .topo a{color:var(--cinza);font-weight:800;text-decoration:none;font-size:.9rem}
+main{max-width:1080px;margin:0 auto;padding:12px 16px 60px;display:grid;gap:14px}
+h1{font-size:1.4rem;font-weight:900;margin:0} p{margin:0}
+.cartao{background:var(--sup);border:1px solid var(--linha);border-radius:16px;padding:16px;display:grid;gap:12px}
+.filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+label{display:grid;gap:4px;font-weight:800;font-size:.9rem}
+select{font:inherit;font-weight:700;padding:9px 12px;border:1px solid var(--linha);border-radius:10px;background:var(--fundo);color:var(--tinta)}
+select:focus-visible,button:focus-visible{outline:2px solid var(--laranja);outline-offset:1px}
+button{font:inherit;font-weight:900;border:0;border-radius:10px;padding:9px 14px;background:var(--laranja);color:#fff;cursor:pointer}
+button.sec{background:transparent;color:var(--laranja);border:2px solid var(--laranja)}
+button.lk{background:transparent;color:var(--laranja);padding:0;border-radius:0;text-align:left;font-weight:900;text-decoration:underline}
+.troca{display:inline-flex;border:2px solid var(--laranja);border-radius:10px;overflow:hidden}
+.troca button{border-radius:0;background:transparent;color:var(--laranja);padding:7px 12px}
+.troca button[aria-pressed="true"]{background:var(--laranja);color:#fff}
+.trilha{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:.92rem}
+.trilha span{color:var(--cinza)}
+.resumo{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+.caixa{border:1px solid var(--linha);border-radius:12px;padding:10px 12px}
+.caixa small{display:block;color:var(--cinza);font-weight:700} .caixa b{font-size:1.25rem;font-weight:900}
+.dica{font-size:.85rem;color:var(--cinza);font-weight:600}
+.msg.erro{color:var(--erro);font-weight:800}
+table{width:100%;border-collapse:collapse;font-size:.9rem} th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--linha)} th{font-weight:900;white-space:nowrap}
+td.num,th.num{text-align:right;white-space:nowrap}
+tfoot td{font-weight:900}
+.rolar{overflow-x:auto}
+.p{display:inline-block;min-width:58px;text-align:center;font-weight:900;border-radius:99px;padding:1px 8px}
+.p.v{background:#E6F4EA;color:#1E6B34} .p.a{background:#FFF4D6;color:#7A5200} .p.r{background:#FCE8E6;color:#A1271D}
+@media (prefers-color-scheme: dark){.p.v{background:#1E3A26;color:#9BE3AE}.p.a{background:#3D3215;color:#F5D58A}.p.r{background:#40201D;color:#F2B8B5}}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header class="topo"><div class="in"><img src="../img/logo-rc.png" alt="(RC)" width="76" height="30"><b>Sistema RC · <span>Metas</span></b><span class="cresce"></span><a href="pedido.html">Fazer pedido</a><a href="entrar.html">Conta</a></div></header>
+<main id="palco"><p class="dica">Carregando…</p></main>
+<script src="metas.js?v=1"></script>
+</body>
+</html>
