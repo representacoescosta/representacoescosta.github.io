@@ -11,6 +11,9 @@
    v3 (13/11/2026): o campo de preço do gestor segue a permissão preco.ajustar que vem da sessão (igual ao servidor);
    "aguarda o gestor" segue o status aguardando_preco devolvido pelo servidor (vale também no reenvio da fila);
    preço sugerido aparece como sugestão; "1.234" sem vírgula no preço é recusado (ambíguo).
+   v7 (20/11/2026, migração 50): preço no pedido por representada (rc.representada.preco_no_pedido). GODAM = "tabela": produto
+   sem preço não aparece nem entra (exceto leite longa vida). Sabor de Minas, 4G e Vitória = "sugerido": todo produto ativo entra,
+   a tabela é só sugestão, o vendedor sugere e o gestor aprova (o pedido fica "aguardando o gestor"); o preço do gestor já vale.
    Segurança: o preço da tela é só uma prévia — o servidor recalcula preço, permissão, carteira e vendedor; nada de HTML
    vindo da API (tudo entra como texto); a sessão fica só nesta aba; a fila guarda só o pedido (nunca a sessão). */
 (function () {
@@ -245,15 +248,21 @@
     if (!prod || prod.representada_id !== linha.representada_id) return { erro: "Produto não está mais na tabela desta representada." };
     var q = cx ? Number(cx.quantidade_nivel_anterior) : null, peso = cx ? Number(cx.peso_liquido_kg) : null;
     var tb = precoTabela(prod), digitado = linha.preco, origem, preco;
+    var sug = sugerido(prod.representada_id);
     if (prod.tipo_peso === "LL") {
-      if (digitado == null) return { erro: "Leite longa vida: informe o preço deste pedido." };
-      origem = "digitado_ll"; preco = digitado;
+      if (sug && !(podeAjustarPreco() && digitado != null)) { origem = "pendente_gestor"; preco = digitado; }
+      else {
+        if (digitado == null) return { erro: "Leite longa vida: informe o preço deste pedido." };
+        origem = "digitado_ll"; preco = digitado;
+      }
     } else if (!tb.origem) {
+      if (!sug) return { erro: "Produto sem preço na tabela: não entra no pedido." };
       if (digitado != null && podeAjustarPreco()) { origem = "ajuste_gestor"; preco = digitado; }
       else { origem = "pendente_gestor"; preco = digitado; }
     } else if (digitado != null && digitado !== tb.pu) {
-      if (!podeAjustarPreco()) return { erro: "Só o gestor muda o preço da tabela." };
-      origem = "ajuste_gestor"; preco = digitado;
+      if (podeAjustarPreco()) { origem = "ajuste_gestor"; preco = digitado; }
+      else if (sug) { origem = "pendente_gestor"; preco = digitado; }
+      else return { erro: "Só o gestor muda o preço da tabela." };
     } else { origem = tb.origem; preco = tb.pu; }
     if (prod.tipo_peso === "PV" && !(peso > 0)) return { erro: "Produto sem peso da caixa cadastrado. Avise o escritório." };
     if (prod.tipo_peso !== "PV" && !((origem === "negociada" || origem === "padrao") && tb.pc != null) && !(q > 0)) return { erro: "Produto sem caixa cadastrada. Avise o escritório." };
@@ -266,6 +275,8 @@
     return { origem: origem, preco: preco, tabela: tb.pu, total: total, kg: peso > 0 ? Math.round(linha.caixas * peso * 1000) / 1000 : null };
   }
   function unidade(prod) { return prod.tipo_peso === "PV" ? "kg" : "un"; }
+  // Preço sugerido (migração 50): mesma regra do servidor; sem a coluna no pacote vale "tabela" e o servidor decide.
+  function sugerido(repId) { var r = P.dados.representada[repId]; return !!(r && r.preco_no_pedido === "sugerido"); }
   // Texto do preço de uma linha: item pendente mostra a sugestão do vendedor como sugestão, nunca como preço.
   function textoPreco(r, prod, curto) {
     if (r.origem === "pendente_gestor") return r.preco != null ? (curto ? "sug. " + dec(r.preco, 2) : "sugestão " + moeda(r.preco) + "/" + unidade(prod)) : (curto ? "—" : "sem preço");
@@ -445,7 +456,8 @@
       }
       var busca = el("input", { autocomplete: "off", placeholder: "Nome ou código do produto" }), sug = el("div", { class: "sug" });
       var permitidas = {}; (F.filtro_rep ? [F.filtro_rep] : reps).forEach(function (id) { permitidas[id] = 1; });
-      var prods = lista("produto").filter(function (p) { return permitidas[p.representada_id] && p.status !== "fora_de_linha"; })
+      var prods = lista("produto").filter(function (p) { return permitidas[p.representada_id] && p.status !== "fora_de_linha" &&
+          (p.tipo_peso === "LL" || sugerido(p.representada_id) || !!precoTabela(p).origem); })
         .sort(function (a, b) { return String(a.descricao).localeCompare(String(b.descricao), "pt-BR"); });
       var filtrar = function () {
         var q = normal(busca.value.trim()); sug.replaceChildren();
@@ -470,10 +482,11 @@
     var qCx = el("input", { class: "grande", inputmode: "numeric", autocomplete: "off", placeholder: "0" });
     var qKg = el("input", { class: "grande", inputmode: "decimal", autocomplete: "off", placeholder: peso > 0 ? "0" : "—", disabled: !(peso > 0) });
     var bon = el("input", { type: "checkbox" }); bon.checked = ATUAL.bonificado || F.so_bonificacao; bon.disabled = F.so_bonificacao;
-    var pr = null, rot = null;
-    if (prod.tipo_peso === "LL") rot = "Preço deste pedido (R$/" + unidade(prod) + ") — obrigatório";
+    var pr = null, rot = null, sugRep = sugerido(prod.representada_id), llObrig = prod.tipo_peso === "LL" && !(sugRep && !podeAjustarPreco());
+    if (prod.tipo_peso === "LL") rot = llObrig ? "Preço deste pedido (R$/" + unidade(prod) + ")" + (sugRep ? " — se deixar vazio, fica aguardando o preço" : " — obrigatório") : "Sugestão de preço (R$/" + unidade(prod) + ") — opcional; o gestor aprova";
     else if (!tb.origem) rot = podeAjustarPreco() ? "Preço (R$/" + unidade(prod) + ") — sem preço na tabela; se deixar vazio, fica pendente" : "Sugestão de preço (R$/" + unidade(prod) + ") — opcional; o gestor aprova";
     else if (podeAjustarPreco()) rot = "Preço deste pedido (R$/" + unidade(prod) + ") — ajuste do gestor";
+    else if (sugRep) rot = "Sugestão de preço (R$/" + unidade(prod) + ") — opcional; diferente da tabela, o gestor aprova";
     if (rot) { pr = el("input", { class: "grande", inputmode: "decimal", autocomplete: "off", placeholder: tb.origem ? dec(tb.pu, 2) + " (tabela)" : "0,00" }); if (ATUAL.preco != null) pr.value = dec(ATUAL.preco, 2); }
     var prev = el("div", { class: "preco" });
     function previa() {
@@ -510,7 +523,7 @@
       el("div", { class: "v" }, el("button", { type: "button", class: "lixo", text: "Trocar", onclick: function () { ATUAL = null; desenharItem(); } })),
       el("div", { class: "s", text: [nomeRep(prod.representada_id), prod.codigo_representada, prod.tipo_peso, cx ? (cx.quantidade_nivel_anterior ? cx.quantidade_nivel_anterior + " un/cx" : "") + (peso ? " · " + dec(peso, 3) + " kg/cx" : "") : "sem caixa cadastrada"].filter(Boolean).join(" · ") })),
       el("div", { class: "duas" }, el("label", null, el("span", { class: "obrig", text: "Caixas" }), qCx), el("label", null, el("span", { text: "Kg" }), qKg)),
-      pr ? el("label", null, el("span", { class: prod.tipo_peso === "LL" ? "obrig" : null, text: rot }), pr) : null,
+      pr ? el("label", null, el("span", { class: llObrig && !sugRep ? "obrig" : null, text: rot }), pr) : null,
       prev,
       el("label", { class: "marca" }, bon, el("span", null, "Item bonificado ", el("small", { class: "dica", text: "(mesmo preço; não entra no total a faturar)" }))),
       el("div", { class: "acoes" }, add), m);
@@ -597,7 +610,7 @@
       c.append(el("p", null, el("b", { text: nomeRep(repId) }), " · Vendedor: " + (nomeUsuario(v.vendedor_loja_id) || "da carteira")),
         el("div", { class: "rolar" }, el("table", null, el("thead", null, el("tr", null, el("th", { text: "Produto" }), el("th", { class: "num", text: "Cx" }), el("th", { class: "num", text: "Preço" }), el("th", { class: "num", text: "Total" }))), corpo)),
         el("p", { class: "dica", text: "A faturar: " + moeda(t.valor) + (t.bon ? " · Bonificação: " + moeda(t.bon) : "") + " · " + t.cx + " cx · " + dec(t.kg, 1) + " kg" }));
-      if (t.pend) c.append(el("div", { class: "aviso", text: t.pend + (t.pend === 1 ? " produto sem preço na tabela: o pedido" : " produtos sem preço na tabela: o pedido") + " fica aguardando a aprovação do gestor e só segue depois dela. O total a faturar não conta esses produtos." }));
+      if (t.pend) c.append(el("div", { class: "aviso", text: t.pend + (t.pend === 1 ? " produto sem preço aprovado (sem preço na tabela ou com preço sugerido): o pedido" : " produtos sem preço aprovado (sem preço na tabela ou com preço sugerido): o pedido") + " fica aguardando a aprovação do gestor e só segue depois dela. O total a faturar não conta esses produtos." }));
     });
     c.append(el("p", null, el("b", { text: "Total a faturar: " + moeda(tg.valor) }), " · " + tg.cx + " cx · " + dec(tg.kg, 1) + " kg"),
       el("p", { class: "dica", text: "Valores calculados no aparelho; o servidor confere preço, permissão, carteira e vendedor ao receber." }));
