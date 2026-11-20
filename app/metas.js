@@ -1,7 +1,9 @@
-/* Sistema RC — Metas (20/11/2026, v1).
+/* Sistema RC — Metas (20/11/2026, v2: uma representada por vez).
    Meta × faturado em camadas: vendedores → clientes do vendedor → produtos do cliente. Kg ou caixas; Total, PF ou PV.
    Regras (servidor, rc.api_relatorio_metas, iguais ao App RC): Leite fora; produto inativo sem meta; venda sem meta conta;
    esperado pela regra 60/40 dos dias úteis até o prazo (próxima sexta ou último dia útil do mês).
+   Metas nunca juntam representadas (regra do Eric, 20/11): a análise é sempre de uma representada; sem escolha, o
+   servidor abre a primeira que tem meta no mês e devolve a lista para a troca. "Hoje" = último faturamento sem leite.
    Cores do % (como no App RC): verde = chegou ao esperado; amarelo = 60% a 99% do esperado; vermelho = abaixo de 60%.
    API: api-relatorios "relatorio-metas". Segurança: quem vê o quê é decidido no servidor (vendedor só vê o dele);
    a tela só mostra o que a API devolve, sempre como texto; ids só uuid. */
@@ -12,7 +14,7 @@
   var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   var NOMES_NIVEL = { vendedor: "Vendedores", cliente: "Clientes", produto: "Produtos" };
   var palco = document.getElementById("palco");
-  var estado = { comp: mesAtual(), peso: "total", unidade: "kg", trilha: [{ nivel: "vendedor", filtros: {}, nome: "Vendedores" }] };
+  var estado = { comp: mesAtual(), rep: null, reps: [], peso: "total", unidade: "kg", trilha: [{ nivel: "vendedor", filtros: {}, nome: "Vendedores" }] };
 
   function el(tag, props) {
     var e = document.createElement(tag), p = props || {};
@@ -72,6 +74,7 @@
     var c = estado.trilha[estado.trilha.length - 1], f = {};
     Object.keys(c.filtros).forEach(function (k) { if (UUID.test(c.filtros[k])) f[k] = c.filtros[k]; });
     if (estado.peso !== "total") f.peso = estado.peso;
+    if (UUID.test(estado.rep || "")) f.representada_id = estado.rep;
     return f;
   }
 
@@ -84,12 +87,20 @@
         return palco.replaceChildren(cabecalho(), el("section", { class: "cartao" }, el("p", { class: "msg erro", text: r.erro || "Não foi possível carregar. Tente de novo." }),
           el("div", null, el("button", { type: "button", text: "Tentar de novo", onclick: carregar }))));
       }
+      if (UUID.test(String(r.representada_id || ""))) estado.rep = r.representada_id;
+      estado.reps = Array.isArray(r.representadas) ? r.representadas.filter(function (x) { return x && UUID.test(String(x.id || "")); }) : [];
       palco.replaceChildren(cabecalho(), resumo(r), tabela(r));
     });
   }
 
   function cabecalho() {
-    var selMes = el("select", { "aria-label": "Mês", onchange: function () { estado.comp = selMes.value; carregar(); } });
+    var selMes = el("select", { "aria-label": "Mês", onchange: function () { estado.comp = selMes.value; estado.rep = null; estado.trilha = estado.trilha.slice(0, 1); carregar(); } });
+    var selRep = null;
+    if (estado.reps.length > 1) {
+      selRep = el("select", { "aria-label": "Representada", onchange: function () { estado.rep = selRep.value; estado.trilha = estado.trilha.slice(0, 1); carregar(); } });
+      estado.reps.forEach(function (x) { selRep.append(el("option", { value: x.id, text: txt(x.nome), selected: x.id === estado.rep })); });
+    }
+    var nomeRep = (estado.reps.filter(function (x) { return x.id === estado.rep; })[0] || {}).nome;
     meses().forEach(function (m) { selMes.append(el("option", { value: m[0], text: m[1], selected: m[0] === estado.comp })); });
     function troca(chave, opcoes, rotulo) {
       return el("div", { class: "troca", role: "group", "aria-label": rotulo }, opcoes.map(function (o) {
@@ -104,8 +115,8 @@
       else trilha.append(el("b", { text: t.nome }));
     });
     return el("section", { class: "cartao" },
-      el("h1", { text: "Metas" }),
-      el("div", { class: "filtros" }, el("label", null, "Mês", selMes),
+      el("h1", { text: "Metas" + (nomeRep ? " · " + txt(nomeRep) : "") }),
+      el("div", { class: "filtros" }, el("label", null, "Mês", selMes), selRep ? el("label", null, "Representada", selRep) : null,
         troca("unidade", [["kg", "Kg"], ["cx", "Caixas"]], "Unidade"),
         troca("peso", [["total", "Total"], ["PF", "PF"], ["PV", "PV"]], "Tipo de peso"),
         el("button", { type: "button", class: "sec", text: "Atualizar", onclick: carregar })),
@@ -118,7 +129,7 @@
     var un = cx ? " cx" : " kg";
     var linha = cal.situacao === "encerrado" ? "Mês encerrado: " + n0(cal.uteis) + " dias úteis."
       : cal.situacao === "futuro" ? "Mês ainda não começou."
-      : "Dia útil " + n0(cal.k_hoje) + " de " + n0(cal.uteis) + " · esperado hoje " + n1(100 * (Number(cal.pct_hoje) || 0)) + "% da meta · projeção para " + txt(cal.prazo) + ": " + n1(100 * pct) + "% da meta (regra 60/40).";
+      : (cal.hoje ? "Faturamento até " + txt(cal.hoje) + " · " : "") + "Dia útil " + n0(cal.k_hoje) + " de " + n0(cal.uteis) + " · esperado hoje " + n1(100 * (Number(cal.pct_hoje) || 0)) + "% da meta · projeção para " + txt(cal.prazo) + ": " + n1(100 * pct) + "% da meta (regra 60/40).";
     return el("section", { class: "cartao" },
       el("div", { class: "resumo" },
         el("div", { class: "caixa" }, el("small", { text: "Meta do mês" }), el("b", { text: n0(meta) + un })),
