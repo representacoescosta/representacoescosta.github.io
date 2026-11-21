@@ -1,22 +1,28 @@
-/* Sistema RC — Pedidos: gestão e cancelamento (20/11/2026, v1; v2 20/11/2026: pedidos da planilha também — migração 54).
+/* Sistema RC — Pedidos: gestão e cancelamento (20/11/2026, v1; v2 20/11/2026: pedidos da planilha também — migração 54;
+   v3 21/11/2026: alertas de correção — migração 55).
    Regra do Eric (20/11): cancelar sempre com confirmação; o status muda para "cancelado" e quem cancelou fica
    arquivado com a observação do motivo.
-   API: api-pedidos "pedidos-gestao" (lista) e "cancelar-pedido" ({ pedido_id, versao, motivo }).
+   API: api-pedidos "pedidos-gestao" (lista + alertas), "cancelar-pedido" ({ pedido_id, versao, motivo }) e
+   "resolver-alerta" ({ alerta_id, situacao: corrigido|ignorado, observacao }).
    Antes do faturamento. v2 (regra do Eric, 20/11 18:10: "vindo de planilha, cancela pelo sistema"): pedidos da planilha
    dos últimos 60 dias também aparecem; o cancelamento vai para a planilha pela sincronia (RC Rotinas, até 30 min).
-   Segurança: quem pode cancelar é decidido no servidor (permissão pedido.cancelar); motivo conferido aqui (5 a 500)
-   e de novo no servidor; versão do pedido conferida (dois gestores ao mesmo tempo); tudo que vem da API entra como
+   v3 (regra do Eric, 20/11 18:14): pedido para loja abastecida pela central abre um alerta de correção. O alerta fecha
+   sozinho quando o cliente do pedido é trocado para a central ou o pedido é cancelado; aqui o gestor também pode marcar
+   como corrigido (o servidor confere) ou ignorar com motivo.
+   Segurança: quem pode cancelar/resolver é decidido no servidor (permissão pedido.cancelar); motivo conferido aqui e
+   de novo no servidor; versão do pedido conferida (dois gestores ao mesmo tempo); tudo que vem da API entra como
    texto (textContent), nunca como HTML; ids só uuid; sem janelas do navegador (alert/confirm). */
 (function () {
   "use strict";
   var API = "https://fufwenjnnsvxdgnenpch.supabase.co/functions/v1/api-pedidos/";
   var CHAVE_SESSAO = "rc_sessao";
   var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-  var RECARREGA = { conflito: 1, nao_encontrado: 1, ja_cancelado: 1, ja_faturado: 1, pedido_da_planilha: 1, sugestao_da_planilha: 1 };
+  var RECARREGA = { conflito: 1, nao_encontrado: 1, ja_cancelado: 1, ja_faturado: 1, pedido_da_planilha: 1, sugestao_da_planilha: 1, ja_resolvido: 1 };
   var STATUS = { sugestao: "Sugestão", sugestao_confirmada: "Sugestão confirmada", novo: "Novo", aguardando_preco: "Aguardando preço",
     enviado: "Enviado à representada", faturado: "Faturado", cancelado: "Cancelado" };
+  var SIT_ALERTA = { aberto: "Aberto", corrigido: "Corrigido", ignorado: "Ignorado" };
   var palco = document.getElementById("palco");
-  var aberto = null; // id do pedido com a confirmação aberta (Voltar fecha antes de sair)
+  var aberto = null; // id do cartão com a confirmação aberta (Voltar fecha antes de sair)
 
   function el(tag, props) {
     var e = document.createElement(tag), p = props || {};
@@ -69,12 +75,37 @@
       if (!r.ok || !Array.isArray(r.abertos) || !Array.isArray(r.cancelados)) return palco.replaceChildren(el("section", { class: "cartao" },
         el("h1", { text: "Não foi possível carregar" }), el("p", { class: "msg erro", text: r.erro || "Tente de novo em instantes." }),
         el("div", { class: "acoes" }, el("button", { type: "button", text: "Tentar de novo", onclick: function () { carregar(); } }))));
+      var alertas = Array.isArray(r.alertas) ? r.alertas : [];
+      var abertosA = alertas.filter(function (a) { return a && a.situacao === "aberto"; });
+      var resolvidosA = alertas.filter(function (a) { return a && a.situacao !== "aberto"; });
       var topo = el("section", { class: "cartao" },
         el("div", { class: "acoes", style: "justify-content:space-between;align-items:center" },
           el("h1", { text: "Pedidos" }), el("button", { type: "button", class: "sec", text: "Atualizar", onclick: function () { carregar(); } })),
         el("p", { class: "dica", text: "Pedidos dos últimos 60 dias que ainda não foram faturados (sistema novo e planilha). Pedido da planilha cancelado aqui vai para a planilha em até 30 minutos." }));
       if (aviso) topo.append(el("p", { class: "msg " + aviso[1], role: "status", text: aviso[0] }));
       palco.replaceChildren(topo);
+
+      // Alertas de correção (só aparece a seção quando há algum aberto ou resolvido nos últimos 30 dias)
+      if (alertas.length) {
+        var listaAl = el("div", { class: "lista" });
+        if (!abertosA.length) listaAl.append(el("p", { class: "dica", text: "Nenhum alerta aberto." }));
+        abertosA.forEach(function (a) { var c = cartaoAlerta(a); if (c) listaAl.append(c); });
+        var secao = el("section", { class: "cartao" }, el("h2", { text: "Alertas de correção (" + abertosA.length + ")" }),
+          el("p", { class: "dica", text: "Pedido lançado para loja que a representada abastece pela central. Troque o cliente do pedido para a central (o alerta fecha sozinho) ou ignore com o motivo." }),
+          listaAl);
+        if (resolvidosA.length) {
+          var det = el("details", null, el("summary", { text: "Resolvidos nos últimos 30 dias (" + resolvidosA.length + ")" }));
+          resolvidosA.forEach(function (a) {
+            det.append(el("div", { class: "item cancelado" },
+              el("div", { class: "t" }, txt(a.pedido) + " · " + txt(a.representada), el("span", { class: "selo", text: SIT_ALERTA[a.situacao] || txt(a.situacao) })),
+              el("div", { class: "v", text: txt(a.resolvido_em) }),
+              el("div", { class: "s", text: txt(a.loja) + " → central " + txt(a.central) + " · por " + (txt(a.resolvido_por) || "sistema") }),
+              a.observacao ? el("div", { class: "s motivo", text: txt(a.observacao) }) : null));
+          });
+          secao.append(det);
+        }
+        palco.append(secao);
+      }
 
       var h2a = el("h2", { text: "Em aberto (" + r.abertos.length + ")" });
       var listaA = el("div", { class: "lista" });
@@ -94,6 +125,54 @@
       });
       palco.append(el("section", { class: "cartao" }, el("h2", { text: "Cancelados (arquivo)" }), listaC));
     });
+  }
+
+  function cartaoAlerta(a) {
+    var aid = a && UUID.test(a.id || "") ? a.id : null;
+    if (!aid) return null;
+    var m = el("p", { class: "msg", role: "alert" });
+    var area = el("div");
+    function resolver(sit, obs, botoes) {
+      botoes.forEach(function (b) { b.disabled = true; }); msg(m, "Gravando…");
+      chamar("resolver-alerta", { alerta_id: aid, situacao: sit, observacao: obs || null }).then(function (r) {
+        botoes.forEach(function (b) { b.disabled = false; });
+        if (r._http === 401) return semSessao();
+        if (r.ok) return carregar(["Alerta do " + txt(a.pedido) + (sit === "corrigido" ? " marcado como corrigido." : " ignorado. O motivo ficou registrado."), "ok"]);
+        if (RECARREGA[r.codigo]) return carregar([txt(a.pedido) + ": " + (r.erro || "o alerta mudou.") + " A lista foi atualizada.", "erro"]);
+        msg(m, r.erro || "Não foi possível gravar.", "erro");
+      });
+    }
+    var bCorr = el("button", { type: "button", text: "Marcar como corrigido" });
+    var bIgn = el("button", { type: "button", class: "sec", text: "Ignorar…" });
+    bCorr.addEventListener("click", function () { resolver("corrigido", null, [bCorr, bIgn]); });
+    bIgn.addEventListener("click", function () {
+      aberto = aid; bCorr.hidden = true; bIgn.hidden = true;
+      var obs = el("textarea", { rows: "3", maxlength: "500", required: true, "aria-label": "Motivo para ignorar o alerta", placeholder: "Ex.: entrega excepcional na loja combinada com a representada" });
+      var conta = el("span", { class: "dica", text: "0/500" });
+      obs.addEventListener("input", function () { conta.textContent = obs.value.length + "/500"; });
+      var ok = el("button", { type: "button", class: "perigo", text: "Confirmar: ignorar alerta" });
+      var volta = el("button", { type: "button", class: "sec", text: "Voltar", onclick: fechar });
+      ok.addEventListener("click", function () {
+        var t = obs.value.trim();
+        if (t.length < 5) { obs.setAttribute("aria-invalid", "true"); obs.focus(); return msg(m, "Escreva o motivo (pelo menos 5 letras).", "erro"); }
+        obs.removeAttribute("aria-invalid");
+        resolver("ignorado", t, [ok, volta]);
+      });
+      area.replaceChildren(el("div", { class: "confirma" },
+        el("label", null, el("span", { class: "obrig", text: "Motivo" }), obs), conta, el("div", { class: "acoes" }, ok, volta)));
+      obs.focus();
+    });
+    function fechar() { aberto = null; area.replaceChildren(); bCorr.hidden = false; bIgn.hidden = false; msg(m, ""); }
+    var cartao = el("div", { class: "item", style: "grid-template-columns:1fr auto" },
+      el("div", { class: "t" }, txt(a.pedido) + " · " + txt(a.representada), el("span", { class: "selo pend", text: "Corrigir" }),
+        a.status_pedido ? el("span", { class: "selo", text: status(a.status_pedido) }) : null),
+      el("div", { class: "v", text: txt(a.aberto_em) }),
+      el("div", { class: "s", text: "Loja: " + txt(a.loja) + " · abastecida pela central " + txt(a.central) }),
+      el("div", { class: "s motivo", text: txt(a.mensagem) }),
+      el("div", { style: "grid-column:1 / -1;display:grid;gap:8px" }, el("div", { class: "acoes" }, bCorr, bIgn), area, m));
+    cartao._fechar = fechar;
+    cartao.dataset.pid = aid;
+    return cartao;
   }
 
   function cartaoAberto(p) {
@@ -142,7 +221,7 @@
     return cartao;
   }
 
-  // Voltar: se a confirmação de cancelamento estiver aberta, fecha; senão volta para o menu do Sistema RC (Entrar).
+  // Voltar: se uma confirmação estiver aberta, fecha; senão volta para o menu do Sistema RC (Entrar).
   document.getElementById("voltar").addEventListener("click", function () {
     if (aberto) {
       var c = palco.querySelector('[data-pid="' + aberto + '"]');

@@ -1,4 +1,4 @@
-/* Sistema RC — Cadastros e Carteira (09/11/2026, v1).
+/* Sistema RC — Cadastros e Carteira (09/11/2026, v1; v2 21/11/2026: abastecimento na loja ou pela central, por fornecedor — migração 55).
    Conversa só com a API do Sistema RC (api-fichas), com a sessão desta aba (a mesma do "Entrar").
    Segurança: nada de HTML vindo da API (tudo entra como texto); quem pode o quê é decidido no servidor
    (a tela só esconde botões por conveniência); vendedor que cadastra vira sugestão para aprovação. */
@@ -54,7 +54,7 @@
   function erroTexto(r) {
     var e = (r && r.erro) || "Não foi possível concluir.";
     var nomes = { cnpj_cpf: "CNPJ/CPF", nome_referencia: "nome de referência", vinculo: "representada", codigo_na_representada: "código na representada",
-      prefixo_codigo: "prefixo", situacao_carteira: "situação", cep: "CEP", municipio_ibge: "cidade", obrigatorios: "campos obrigatórios", vigencia_fim: "data de fim", alvos: "grupo de clientes" };
+      prefixo_codigo: "prefixo", situacao_carteira: "situação", cep: "CEP", municipio_ibge: "cidade", obrigatorios: "campos obrigatórios", vigencia_fim: "data de fim", alvos: "grupo de clientes", abastecimento: "abastecimento" };
     if (r && r.campo) e += " (" + (nomes[r.campo] || r.campo) + ")";
     if (r && r.item) e += " (linha " + r.item + ")";
     return e;
@@ -177,6 +177,14 @@
     return el("div", { class: "acoes", style: "align-items:center;grid-column:1/-1" }, el("span", { class: "dica", text: String(end.texto) }),
       u ? el("a", { href: u, target: "_blank", rel: "noopener noreferrer", class: "rota", text: "🧭 Como chegar" }) : null);
   }
+  // Abastecimento por fornecedor (migração 53/55, regra do Eric de 20/11): "pela central" = loja sem meta e pedido na loja abre alerta.
+  var ABASTECIMENTO = [["loja", "Na loja"], ["central", "Pela central"]];
+  function txtAbastecimento(l) {
+    var cen = txt(l.central);
+    if (l.abastecimento === "central") return "Abastecimento: pela central " + cen + " (loja sem meta)";
+    if (l.abastecimento === "loja") return "Abastecimento: na loja" + (cen ? " (central cadastrada: " + cen + ")" : "");
+    return cen ? "Abastecimento não confirmado · central: " + cen : "";
+  }
   function itemCarteira(l, editavel) {
     var vend = [["Loja", l.vendedor_loja], ["Rede de lojas", l.vendedor_rede_lojas], ["Rede associativa", l.vendedor_rede_associativa]]
       .filter(function (v) { return txt(v[1]); }).map(function (v) { return v[0] + ": " + txt(v[1]); }).join(" · ");
@@ -185,6 +193,8 @@
       el("div", { class: "s" }, txt(l.representada) + " · código " + (l.codigo_na_representada || "—"),
         l.codigo_gerado ? el("span", { class: "selo gerado", text: "gerado" }) : null),
       el("div", { class: "s", text: (vend || "Sem vendedor") + " · " + (NOME_SIT[l.situacao] || l.situacao) }),
+      txtAbastecimento(l) ? el("div", { class: "s" }, txtAbastecimento(l),
+        txt(l.central) && !l.abastecimento ? el("span", { class: "selo gerado", text: "confirmar" }) : null) : null,
       el("div", { class: "s", text: [l.bairro, l.cidade, l.uf].filter(Boolean).join(" · ") + (l.desde ? "  ·  desde " + l.desde : "") + (l.ate ? " até " + l.ate : "") }),
       blocoEndereco(l.endereco));
     if (editavel && !l.ate) {
@@ -197,7 +207,8 @@
   function formVinculoEditar(l) {
     DETALHE = true;   // botão Voltar fecha este detalhe
     var orig = { codigo_na_representada: l.codigo_na_representada, vendedor_loja_id: idDe(l.vendedor_loja), vendedor_rede_lojas_id: idDe(l.vendedor_rede_lojas),
-      vendedor_rede_associativa_id: idDe(l.vendedor_rede_associativa), situacao_carteira: l.situacao };
+      vendedor_rede_associativa_id: idDe(l.vendedor_rede_associativa), situacao_carteira: l.situacao, abastecimento: l.abastecimento || null };
+    var temCentral = !!txt(l.central);
     var f = {
       codigo_na_representada: entrada("text", l.codigo_na_representada, { maxlength: 30 }),
       vendedor_loja_id: opcoesSel(listaUsu(), "—", orig.vendedor_loja_id),
@@ -207,6 +218,8 @@
       condicao_pagamento_id: opcoesSel(O.condicoes.map(function (c) { return [c.id, c.nome]; }), "Sem mudança", null),
       limite_credito: entrada("number", null, { min: 0, step: "0.01", placeholder: "Sem mudança" })
     };
+    // Só loja com central cadastrada escolhe "pela central" (o banco recusa sem central); sem central, só "na loja" ou vazio.
+    f.abastecimento = opcoesSel(temCentral ? ABASTECIMENTO : ABASTECIMENTO.slice(0, 1), "Não confirmado", orig.abastecimento);
     var aPartir = entrada("date"), m = el("p", { class: "msg", role: "alert" });
     var salvar = el("button", { type: "button", text: "Salvar" }), encerrar = el("button", { type: "button", class: "sec", text: "Encerrar vínculo" });
     function enviar(campos) {
@@ -233,8 +246,10 @@
       campo("Código na representada", f.codigo_na_representada), campo("Vendedor da loja", f.vendedor_loja_id),
       campo("Vendedor da rede de lojas", f.vendedor_rede_lojas_id), campo("Vendedor da rede associativa", f.vendedor_rede_associativa_id),
       campo("Situação", f.situacao_carteira), campo("Condição de pagamento", f.condicao_pagamento_id), campo("Limite de crédito (R$)", f.limite_credito),
+      campo("Abastecimento (" + txt(l.representada) + ")", f.abastecimento),
       campo("Vale a partir de", aPartir)),
       el("p", { class: "dica", text: "Trocar vendedor fecha o período atual na véspera da data e abre outro (o histórico guarda o vendedor de cada época)." }),
+      el("p", { class: "dica", text: temCentral ? "Abastecimento pela central " + txt(l.central) + ": a loja não recebe meta (a meta fica na central) e pedido lançado para a loja abre um alerta de correção. Confirme com a representada antes de marcar." : "Esta loja não tem central cadastrada: só dá para marcar \"na loja\"." }),
       el("div", { class: "acoes" }, salvar, encerrar), m);
   }
 
