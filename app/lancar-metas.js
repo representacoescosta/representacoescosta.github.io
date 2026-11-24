@@ -1,11 +1,13 @@
-/* Sistema RC — Lançar metas (20/11/2026, v1).
-   O banco na nuvem é a fonte das metas (decisão do Eric, 20/11). Três jeitos de lançar:
+/* Sistema RC — Lançar metas (24/11/2026, v2; v1 de 20/11/2026).
+   O banco na nuvem é a fonte das metas (decisão do Eric, 20/11). Jeitos de lançar:
+   0. planilha de preenchimento (v2, pedido do Eric em 24/11): baixar o .xlsx com uma aba por vendedor (cliente na coluna A,
+      produtos da B em diante, metas em caixas), preencher e subir de novo; a tela confere o aceite (soma da equipe > 1,1 × objetivo);
    1. copiar o mês anterior (api-relatorios "metas-copiar"; pede confirmação se o mês já tem metas);
    2. importar o Excel no modelo de hoje — aba com as colunas Vendedor | CNPJ | Código | Caixas (ex.: Metas_Banco_Claude) —
       lido aqui no navegador (só as linhas vão para a API; o arquivo não sai do aparelho) e gravado em modo "substituir";
    3. ajustar cliente a cliente (modo "ajustar"; caixas 0 apaga a linha).
-   Segurança: só o gestor grava (meta.aprovar, conferido no servidor); a tela só mostra texto; arquivo até 15 MB e 4.000 linhas;
-   o servidor confere de novo cliente, produto, caixas e vendedor. */
+   Segurança: só o gestor grava e baixa a planilha (meta.aprovar, conferido no servidor); a tela só mostra texto; arquivo até 15 MB
+   e 4.000 linhas por envio; o servidor confere de novo cliente, produto, caixas e vendedor; o .xlsx é montado e lido aqui. */
 (function () {
   "use strict";
   var BASE = "https://fufwenjnnsvxdgnenpch.supabase.co/functions/v1/";
@@ -131,6 +133,174 @@
     return ix ? { aba: nome, linhas: linhas } : null;
   }
 
+  /* ---------- planilha de preenchimento (v2, 24/11/2026; pedido do Eric) ----------
+     Baixar: um .xlsx gerado aqui no navegador, uma aba por vendedor; coluna A = "RCxxxxx · cliente";
+     colunas B em diante = "código · produto"; células = metas em caixas (vazia = sem meta).
+     Subir: lê as abas com "Cliente" em A1; cada aba vai em modo "ajustar" com todas as células (vazia = 0, apaga a meta);
+     o vendedor é o da loja na carteira (o servidor confere). Aceite: soma da equipe > fator × objetivo (PF e PV, em kg). */
+  var CRC = (function () { var t = [], c; for (var n = 0; n < 256; n++) { c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(b) { var c = 0xFFFFFFFF; for (var i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function zipar(arquivos) { // [{nome, texto}] -> Blob (zip sem compressão)
+    var enc = new TextEncoder(), partes = [], central = [], pos = 0;
+    arquivos.forEach(function (a) {
+      var nome = enc.encode(a.nome), dados = enc.encode(a.texto), crc = crc32(dados);
+      var h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+      h.setUint32(14, crc, true); h.setUint32(18, dados.length, true); h.setUint32(22, dados.length, true); h.setUint16(26, nome.length, true);
+      partes.push(new Uint8Array(h.buffer), nome, dados);
+      var c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+      c.setUint32(16, crc, true); c.setUint32(20, dados.length, true); c.setUint32(24, dados.length, true); c.setUint16(28, nome.length, true);
+      c.setUint32(42, pos, true);
+      central.push(new Uint8Array(c.buffer), nome);
+      pos += 30 + nome.length + dados.length;
+    });
+    var tam = central.reduce(function (s, x) { return s + x.length; }, 0), f = new DataView(new ArrayBuffer(22));
+    f.setUint32(0, 0x06054b50, true); f.setUint16(8, arquivos.length, true); f.setUint16(10, arquivos.length, true);
+    f.setUint32(12, tam, true); f.setUint32(16, pos, true);
+    return new Blob(partes.concat(central, [new Uint8Array(f.buffer)]), { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  }
+  function xesc(s) { return String(s === null || s === undefined ? "" : s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function colNome(i) { var s = ""; i++; while (i > 0) { var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+  function celula(ref, v, estilo) {
+    var st = estilo ? ' s="' + estilo + '"' : "";
+    if (typeof v === "number") return '<c r="' + ref + '"' + st + '><v>' + v + '</v></c>';
+    if (v === null || v === undefined || v === "") return estilo ? '<c r="' + ref + '"' + st + '/>' : "";
+    return '<c r="' + ref + '"' + st + ' t="inlineStr"><is><t xml:space="preserve">' + xesc(v) + '</t></is></c>';
+  }
+  function abaXml(linhas, larguras, congelar) {
+    var cols = larguras.map(function (w, i) { return '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>'; }).join("");
+    var vista = congelar ? '<sheetViews><sheetView workbookViewId="0"><pane xSplit="1" ySplit="1" topLeftCell="B2" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>' : "";
+    var corpo = linhas.map(function (l, r) {
+      return '<row r="' + (r + 1) + '">' + l.map(function (v, c) {
+        var estilo = r === 0 ? 1 : (congelar && c > 0 ? 2 : 0);
+        return celula(colNome(c) + (r + 1), v, estilo);
+      }).join("") + "</row>";
+    }).join("");
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      vista + (cols ? "<cols>" + cols + "</cols>" : "") + "<sheetData>" + corpo + "</sheetData></worksheet>";
+  }
+  function nomeAba(s, usados) {
+    var b = String(s || "Sem nome").replace(/[\[\]:*?\/\\']/g, " ").trim().slice(0, 31) || "Aba", n = b, i = 2;
+    while (usados[n.toLowerCase()]) { n = b.slice(0, 28) + " " + i++; }
+    usados[n.toLowerCase()] = 1; return n;
+  }
+  function montarXlsx(abas) { // [{nome, linhas, larguras, congelar}]
+    var usados = {}; abas.forEach(function (a) { a.nome = nomeAba(a.nome, usados); });
+    var arq = [];
+    arq.push({ nome: "[Content_Types].xml", texto: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+      abas.map(function (a, i) { return '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'; }).join("") + "</Types>" });
+    arq.push({ nome: "_rels/.rels", texto: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' });
+    arq.push({ nome: "xl/workbook.xml", texto: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' +
+      abas.map(function (a, i) { return '<sheet name="' + xesc(a.nome) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>'; }).join("") + "</sheets></workbook>" });
+    arq.push({ nome: "xl/_rels/workbook.xml.rels", texto: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      abas.map(function (a, i) { return '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>'; }).join("") +
+      '<Relationship Id="rId' + (abas.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' });
+    // estilos: 0 normal; 1 cabeçalho (negrito, fundo laranja claro, quebra de texto); 2 célula de meta (borda fina, fundo amarelo = preencher)
+    arq.push({ nome: "xl/styles.xml", texto: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<fonts count="2"><font><sz val="10"/><name val="Arial"/></font><font><b/><sz val="10"/><name val="Arial"/></font></fonts>' +
+      '<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFDE3D2"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFF9DB"/></patternFill></fill></fills>' +
+      '<borders count="2"><border/><border><left style="thin"><color rgb="FFD9D9D9"/></left><right style="thin"><color rgb="FFD9D9D9"/></right><top style="thin"><color rgb="FFD9D9D9"/></top><bottom style="thin"><color rgb="FFD9D9D9"/></bottom></border></borders>' +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+      '<xf fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>' +
+      '<xf numFmtId="1" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>' });
+    abas.forEach(function (a, i) { arq.push({ nome: "xl/worksheets/sheet" + (i + 1) + ".xml", texto: abaXml(a.linhas, a.larguras || [], a.congelar) }); });
+    return zipar(arq);
+  }
+  function rotuloProduto(p) { return String(p.codigo) + " · " + String(p.nome || "") + " (" + String(p.peso || "") + ")"; }
+  function rotuloCliente(c) { return String(c.codigo) + " · " + String(c.nome || ""); }
+  function planilhaDoModelo(m, nomeRep, comp) {
+    var prods = m.produtos || [], metas = {}, porVend = {};
+    (m.metas || []).forEach(function (x) { var k = x.cliente + "|" + x.produto; metas[k] = (metas[k] || 0) + Number(x.caixas || 0); });
+    (m.clientes || []).forEach(function (c) { (porVend[c.vendedor] = porVend[c.vendedor] || []).push(c); });
+    var o = m.objetivo || {}, t = m.totais || {};
+    var leia = [["Planilha de metas " + nomeRep + " · " + nomeMes(comp)],
+      ["Uma aba por vendedor. Coluna A: cliente. Da coluna B em diante: produtos. Preencha as metas em caixas nas células amarelas."],
+      ["Célula vazia ou 0 = sem meta para aquele cliente e produto. Não mude os nomes das abas, a coluna A nem a linha 1."],
+      ["Depois de preencher, salve como Excel (.xlsx) e suba em Lançar metas › Planilha de preenchimento."],
+      ["As metas são aceitas quando a soma da equipe passa de " + n0(o.fator) + " × o objetivo " + nomeRep + ", em PF e em PV (kg)."],
+      [""], ["Objetivo " + nomeRep + " (kg)", "PF", "PV"],
+      ["Objetivo", o.pf_kg === undefined ? "" : Number(o.pf_kg), o.pv_kg === undefined ? "" : Number(o.pv_kg)],
+      ["Mínimo para aceite", o.pf_kg === undefined ? "" : Math.round(Number(o.pf_kg) * Number(o.fator) * 10) / 10, o.pv_kg === undefined ? "" : Math.round(Number(o.pv_kg) * Number(o.fator) * 10) / 10],
+      ["Metas no sistema quando a planilha foi baixada", Number(t.pf_kg || 0), Number(t.pv_kg || 0)]];
+    var abas = [{ nome: "Leia-me", linhas: leia, larguras: [48, 14, 14] }];
+    Object.keys(porVend).sort().forEach(function (v) {
+      var linhas = [["Cliente"].concat(prods.map(rotuloProduto))];
+      porVend[v].forEach(function (c) {
+        linhas.push([rotuloCliente(c)].concat(prods.map(function (p) { var q = metas[c.codigo + "|" + p.codigo]; return q ? q : ""; })));
+      });
+      abas.push({ nome: v, linhas: linhas, larguras: [42].concat(prods.map(function () { return 14; })), congelar: true });
+    });
+    abas.push({ nome: "Produtos", linhas: [["Código", "Produto", "Peso", "kg por caixa"]].concat(prods.map(function (p) { return [String(p.codigo), String(p.nome || ""), String(p.peso || ""), Number(p.kg_caixa || 0)]; })), larguras: [10, 50, 8, 12] });
+    return montarXlsx(abas);
+  }
+  function baixarArquivo(blob, nome) {
+    var url = URL.createObjectURL(blob), a = el("a", { href: url, download: nome });
+    document.body.append(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+  // leitura da planilha preenchida (abas com "Cliente" em A1)
+  function lerPreenchida(buf) {
+    var texto = lerZip(buf);
+    return Promise.all([texto("xl/workbook.xml"), texto("xl/_rels/workbook.xml.rels"), texto("xl/sharedStrings.xml")]).then(function (r) {
+      if (!r[0] || !r[1]) throw new Error("O arquivo não é um Excel (.xlsx) válido.");
+      var rels = {}; (r[1].match(/<Relationship\b[^>]*>/g) || []).forEach(function (t) { rels[atributo(t, "Id")] = atributo(t, "Target"); });
+      var abas = (r[0].match(/<sheet\b[^>]*>/g) || []).map(function (t) {
+        var alvo = (rels[atributo(t, "r:id")] || "").replace(/^\/?xl\//, ""); return { nome: atributo(t, "name"), arq: "xl/" + alvo };
+      });
+      var ss = ((r[2] || "").match(/<si>[\s\S]*?<\/si>/g) || []).map(function (si) { return ent((si.match(/<t[^>]*>[\s\S]*?<\/t>/g) || []).map(function (t) { return t.replace(/<[^>]+>/g, ""); }).join("")); });
+      return Promise.all(abas.map(function (a) { return texto(a.arq).then(function (xml) { return { nome: a.nome, xml: xml || "" }; }); })).then(function (lidas) {
+        var res = [], total = 0;
+        lidas.forEach(function (a) {
+          var rows = a.xml.match(/<row\b[\s\S]*?<\/row>/g) || [], grade = [];
+          rows.forEach(function (row) {
+            var ri = +atributo(/<row\b[^>]*>/.exec(row)[0], "r") - 1, o = [];
+            (row.match(/<c\b[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g) || []).forEach(function (c) {
+              var tag = /<c\b[^>]*>/.exec(c)[0], t = atributo(tag, "t"), v = /<v>([\s\S]*?)<\/v>/.exec(c), is = /<is>([\s\S]*?)<\/is>/.exec(c);
+              o[colIdx(atributo(tag, "r"))] = String(t === "s" ? (ss[+(v ? v[1] : -1)] || "") : t === "inlineStr" ? ent((is ? is[1] : "").replace(/<[^>]+>/g, "")) : v ? ent(v[1]) : "").trim();
+            });
+            if (ri >= 0 && ri < 2000) grade[ri] = o;
+          });
+          var cab = grade[0] || [];
+          if (String(cab[0] || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase() !== "cliente") return;
+          var cols = [];
+          for (var j = 1; j < cab.length; j++) { var mm = /^\s*([0-9A-Za-z]{1,12})\s*·/.exec(cab[j] || ""); if (mm) cols.push({ j: j, prod: mm[1] }); }
+          if (!cols.length) return;
+          var itens = [], erros = [];
+          for (var i = 1; i < grade.length; i++) {
+            var l = grade[i]; if (!l) continue;
+            var mc = /^\s*(RC\d{3,10})\b/i.exec(l[0] || "");
+            if (!mc) { if (cols.some(function (c) { return (l[c.j] || "") !== ""; })) erros.push("Linha " + (i + 1) + ": cliente sem código RC na coluna A."); continue; }
+            cols.forEach(function (c) {
+              var s = String(l[c.j] || "").replace(",", "."), q = s === "" ? 0 : Number(s);
+              if (!(q >= 0 && q <= 100000)) { erros.push("Linha " + (i + 1) + ", " + colNome(c.j) + ": valor inválido (" + s.slice(0, 12) + ")."); return; }
+              itens.push({ cliente: mc[1].toUpperCase(), produto: c.prod, caixas: Math.round(q * 1000) / 1000 });
+            });
+          }
+          if (itens.length > MAX_LINHAS) throw new Error("A aba " + a.nome + " tem células demais (máximo " + MAX_LINHAS + ").");
+          var cx = itens.reduce(function (s, x) { return s + x.caixas; }, 0); total += cx;
+          res.push({ aba: a.nome.slice(0, 60), itens: itens, caixas: cx, erros: erros });
+        });
+        if (!res.length) throw new Error("Não achei abas de vendedor (\"Cliente\" em A1 e produtos da coluna B em diante).");
+        return { abas: res, caixas: total };
+      });
+    });
+  }
+  function quadroAceite(m) {
+    var o = m && m.objetivo, t = (m && m.totais) || {};
+    if (!o) return el("p", { class: "msg erro", text: "Este mês ainda não tem o objetivo da representada. Informe abaixo para o sistema conferir o aceite." });
+    var pfMin = Number(o.pf_kg) * Number(o.fator), pvMin = Number(o.pv_kg) * Number(o.fator);
+    var okPf = Number(t.pf_kg) > pfMin, okPv = Number(t.pv_kg) > pvMin, tb = el("tbody");
+    [["PF", o.pf_kg, pfMin, t.pf_kg, okPf], ["PV", o.pv_kg, pvMin, t.pv_kg, okPv]].forEach(function (x) {
+      tb.append(el("tr", null, el("td", { text: x[0] }), el("td", { class: "num", text: n0(x[1]) }), el("td", { class: "num", text: n0(x[2]) }),
+        el("td", { class: "num", text: n0(x[3]) }), el("td", { text: x[4] ? "Atende" : "Abaixo (faltam " + n0(x[2] - Number(x[3])) + " kg)" })));
+    });
+    return el("div", null,
+      el("p", { class: "msg " + (okPf && okPv ? "ok" : "erro"), text: okPf && okPv ? "Metas aceitas: a soma da equipe passa de " + n0(o.fator) + " × o objetivo em PF e em PV." : "Metas ainda não aceitas: a soma da equipe precisa passar de " + n0(o.fator) + " × o objetivo em PF e em PV." }),
+      el("div", { class: "rolar" }, el("table", null, el("thead", null, el("tr", null, el("th", { text: "Peso" }), el("th", { class: "num", text: "Objetivo (kg)" }),
+        el("th", { class: "num", text: "Mínimo (kg)" }), el("th", { class: "num", text: "Metas (kg)" }), el("th", { text: "Situação" }))), tb)),
+      el("p", { class: "dica", text: n0(t.caixas) + " caixas no mês." }));
+  }
+
   /* ---------- telas ---------- */
   function iniciar() {
     palco.replaceChildren(el("p", { class: "dica", text: "Carregando…" }));
@@ -165,10 +335,90 @@
   }
 
   function desenhar() {
-    var selRep = el("select", { "aria-label": "Representada", onchange: function () { estado.rep = selRep.value; } });
+    var selRep = el("select", { "aria-label": "Representada", onchange: function () { estado.rep = selRep.value; desenhar(); } });
     estado.reps.forEach(function (x) { selRep.append(el("option", { value: x.id, text: String(x.nome || ""), selected: x.id === estado.rep })); });
     var selMes = el("select", { "aria-label": "Mês da meta", onchange: function () { estado.comp = selMes.value; desenhar(); } });
     meses().forEach(function (m) { selMes.append(el("option", { value: m, text: nomeMes(m), selected: m === estado.comp })); });
+    function nomeRep() { var x = estado.reps.filter(function (r) { return r.id === selRep.value; })[0]; return x ? String(x.nome || "") : ""; }
+
+    // 0. planilha de preenchimento
+    var aceite = el("div"), resPl = el("div"), previaPl = el("div"), lidaPl = null;
+    function carregarModelo() {
+      aceite.replaceChildren(el("p", { class: "dica", text: "Conferindo as metas do mês…" }));
+      return chamar("api-relatorios", "metas-modelo", { competencia: estado.comp, representada_id: selRep.value }).then(function (r) {
+        if (r._http === 401) { semSessao(); return null; }
+        if (!r.ok) { aceite.replaceChildren(el("p", { class: "msg erro", text: r.erro || "Não foi possível ler as metas." })); return null; }
+        aceite.replaceChildren(quadroAceite(r)); return r;
+      });
+    }
+    var btBaixar = el("button", { type: "button", text: "Baixar planilha", onclick: function () {
+      btBaixar.disabled = true;
+      carregarModelo().then(function (m) {
+        btBaixar.disabled = false; if (!m) return;
+        if (!(m.produtos || []).length || !(m.clientes || []).length) return resPl.replaceChildren(el("p", { class: "msg erro", text: "Não há clientes ou produtos ativos para montar a planilha." }));
+        baixarArquivo(planilhaDoModelo(m, nomeRep(), estado.comp), "Metas " + nomeRep() + " " + estado.comp + " - preencher.xlsx");
+        resPl.replaceChildren(el("p", { class: "msg ok", text: "Planilha baixada: " + n0((m.clientes || []).length) + " clientes e " + n0((m.produtos || []).length) + " produtos." }));
+      });
+    } });
+    var arqPl = el("input", { type: "file", accept: ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "aria-label": "Planilha preenchida" });
+    var btSubir = el("button", { type: "button", text: "Gravar as metas da planilha", disabled: true });
+    arqPl.addEventListener("change", function () {
+      lidaPl = null; btSubir.disabled = true; resPl.replaceChildren(); previaPl.replaceChildren();
+      var f = arqPl.files && arqPl.files[0]; if (!f) return;
+      if (f.size > MAX_ARQ) return previaPl.replaceChildren(el("p", { class: "msg erro", text: "Arquivo grande demais (até 15 MB)." }));
+      previaPl.replaceChildren(el("p", { class: "dica", text: "Lendo " + f.name + "…" }));
+      f.arrayBuffer().then(lerPreenchida).then(function (x) {
+        lidaPl = x;
+        var tb = el("tbody"), erros = [];
+        x.abas.forEach(function (a) {
+          tb.append(el("tr", null, el("td", { text: a.aba }), el("td", { class: "num", text: n0(a.caixas) })));
+          a.erros.forEach(function (e) { erros.push(a.aba + " · " + e); });
+        });
+        previaPl.replaceChildren(el("p", null, el("b", { text: f.name + ": " + x.abas.length + " aba(s) de vendedor, " + n0(x.caixas) + " caixas." })),
+          el("div", { class: "rolar" }, el("table", null, el("thead", null, el("tr", null, el("th", { text: "Aba" }), el("th", { class: "num", text: "Caixas" }))), tb)),
+          erros.length ? el("div", null, el("p", { class: "msg erro", text: erros.length + " célula(s) com problema; corrija e escolha o arquivo de novo." }),
+            el("ul", null, erros.slice(0, 50).map(function (e) { return el("li", { text: e }); }))) : null,
+          el("p", { class: "dica", text: "Ao gravar, cada cliente × produto das abas recebe o valor da planilha (vazio = sem meta), em " + nomeMes(estado.comp) + ". Clientes que não estão na planilha não mudam." }));
+        btSubir.disabled = erros.length > 0;
+      }).catch(function (e) { previaPl.replaceChildren(el("p", { class: "msg erro", text: e && e.message ? e.message : "Não foi possível ler o arquivo." })); });
+    });
+    btSubir.addEventListener("click", function () {
+      if (!lidaPl) return;
+      btSubir.disabled = true; arqPl.disabled = true;
+      var abas = lidaPl.abas.slice(), feitos = [], i = 0;
+      function proxima() {
+        if (i >= abas.length) {
+          arqPl.disabled = false;
+          resPl.replaceChildren(el("p", { class: "msg ok", text: "Planilha gravada: " + feitos.length + " aba(s)." }));
+          feitos.forEach(function (f) { var c = el("div"); resultado(c, f.r); resPl.append(el("h2", { text: f.aba }), c); });
+          carregarModelo();
+          return;
+        }
+        var a = abas[i++];
+        resPl.replaceChildren(el("p", { class: "dica", text: "Gravando a aba " + a.aba + " (" + i + " de " + abas.length + ")…" }));
+        chamar("api-relatorios", "metas-salvar", { competencia: estado.comp, representada_id: selRep.value, modo: "ajustar", itens: a.itens }).then(function (r) {
+          if (r._http === 401) return semSessao();
+          feitos.push({ aba: a.aba, r: r });
+          if (!r.ok) { arqPl.disabled = false; resPl.replaceChildren(el("p", { class: "msg erro", text: "Parou na aba " + a.aba + ": " + (r.erro || "erro") + ". As abas anteriores já foram gravadas." })); return carregarModelo(); }
+          proxima();
+        });
+      }
+      proxima();
+    });
+    var ePf = el("input", { "aria-label": "Objetivo PF (kg)", inputmode: "decimal", maxlength: "12", placeholder: "kg" });
+    var ePv = el("input", { "aria-label": "Objetivo PV (kg)", inputmode: "decimal", maxlength: "12", placeholder: "kg" });
+    var mObj = el("p", { class: "msg" });
+    var btObj = el("button", { type: "button", class: "sec", text: "Gravar objetivo", onclick: function () {
+      var pf = Number(String(ePf.value).trim().replace(/\./g, "").replace(",", ".")), pv = Number(String(ePv.value).trim().replace(/\./g, "").replace(",", "."));
+      if (!(String(ePf.value).trim() && String(ePv.value).trim() && pf >= 0 && pv >= 0 && pf <= 10000000 && pv <= 10000000)) return msg(mObj, "Informe PF e PV em kg (números).", "erro");
+      btObj.disabled = true; msg(mObj, "");
+      chamar("api-relatorios", "metas-objetivo", { competencia: estado.comp, representada_id: selRep.value, pf_kg: pf, pv_kg: pv }).then(function (r) {
+        btObj.disabled = false;
+        if (r._http === 401) return semSessao();
+        if (!r.ok) return msg(mObj, r.erro || "Não foi possível gravar.", "erro");
+        msg(mObj, "Objetivo gravado.", "ok"); carregarModelo();
+      });
+    } });
 
     // 1. copiar
     var selDe = el("select", { "aria-label": "Copiar de" });
@@ -245,6 +495,13 @@
       el("section", { class: "cartao" }, el("h1", { text: "Lançar metas" }),
         el("div", { class: "filtros" }, el("label", null, "Representada", selRep), el("label", null, "Mês da meta", selMes)),
         el("p", { class: "dica", text: "As metas ficam no sistema novo (fonte oficial). Só o gestor lança. Leite e produto inativo ficam fora; o kg é calculado pelo peso da caixa do cadastro." })),
+      el("section", { class: "cartao" }, el("h1", { text: "Planilha de preenchimento" }),
+        el("p", { class: "dica", text: "Baixe a planilha (uma aba por vendedor: cliente na coluna A, produtos da coluna B em diante, metas em caixas), preencha e suba de novo. O valor digitado substitui a meta do banco." }),
+        aceite,
+        el("div", { class: "filtros" }, btBaixar),
+        el("div", { class: "filtros" }, el("label", null, "Planilha preenchida", arqPl), btSubir), previaPl, resPl,
+        el("details", null, el("summary", { text: "Objetivo da representada no mês (kg)" }),
+          el("div", { class: "filtros" }, el("label", null, "PF", ePf), el("label", null, "PV", ePv), btObj), mObj)),
       el("section", { class: "cartao" }, el("h1", { text: "1. Copiar de outro mês" }),
         el("div", { class: "filtros" }, el("label", null, "Copiar de", selDe), btCop),
         el("p", { class: "dica", text: "Copia as caixas por cliente e produto. O vendedor vem da carteira de hoje." }), resCop),
@@ -254,6 +511,7 @@
       el("section", { class: "cartao" }, el("h1", { text: "3. Ajustar cliente a cliente" }),
         el("div", { class: "filtros" }, el("label", null, "Cliente", eCli), el("label", null, "Produto", eProd), el("label", null, "Caixas", eCx), el("label", null, "Vendedor", eVen), btAj),
         mAj, el("p", { class: "dica", text: "Caixas 0 apaga a meta desse cliente e produto. Vendedor em branco: o vendedor da loja na carteira." }), resAj));
+    carregarModelo();
   }
 
   if (!token()) semSessao(); else iniciar();
