@@ -1,4 +1,4 @@
-/* Sistema RC — Lançar metas (24/11/2026, v2; v1 de 20/11/2026).
+/* Sistema RC — Lançar metas (26/11/2026, v2.1; v2 de 24/11, v1 de 20/11/2026). v2.1: some o "null" na prévia da planilha.
    O banco na nuvem é a fonte das metas (decisão do Eric, 20/11). Jeitos de lançar:
    0. planilha de preenchimento (v2, pedido do Eric em 24/11): baixar o .xlsx com uma aba por vendedor (cliente na coluna A,
       produtos da B em diante, metas em caixas), preencher e subir de novo; a tela confere o aceite (soma da equipe > 1,1 × objetivo);
@@ -377,7 +377,7 @@
         previaPl.replaceChildren(el("p", null, el("b", { text: f.name + ": " + x.abas.length + " aba(s) de vendedor, " + n0(x.caixas) + " caixas." })),
           el("div", { class: "rolar" }, el("table", null, el("thead", null, el("tr", null, el("th", { text: "Aba" }), el("th", { class: "num", text: "Caixas" }))), tb)),
           erros.length ? el("div", null, el("p", { class: "msg erro", text: erros.length + " célula(s) com problema; corrija e escolha o arquivo de novo." }),
-            el("ul", null, erros.slice(0, 50).map(function (e) { return el("li", { text: e }); }))) : null,
+            el("ul", null, erros.slice(0, 50).map(function (e) { return el("li", { text: e }); }))) : "",
           el("p", { class: "dica", text: "Ao gravar, cada cliente × produto das abas recebe o valor da planilha (vazio = sem meta), em " + nomeMes(estado.comp) + ". Clientes que não estão na planilha não mudam." }));
         btSubir.disabled = erros.length > 0;
       }).catch(function (e) { previaPl.replaceChildren(el("p", { class: "msg erro", text: e && e.message ? e.message : "Não foi possível ler o arquivo." })); });
