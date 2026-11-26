@@ -1,4 +1,4 @@
-/* Sistema RC — Lançar metas (26/11/2026, v2.2; v2 de 24/11, v1 de 20/11/2026). v2.1: some o "null" na prévia da planilha. v2.2 (regra do Eric, 26/11): na planilha, célula em branco mantém a meta atual; 0 tira a meta.
+/* Sistema RC — Lançar metas (26/11/2026, v2.3; v2 de 24/11, v1 de 20/11/2026). v2.1: some o "null" na prévia da planilha. v2.2 (regra do Eric, 26/11): na planilha, célula em branco mantém a meta atual; 0 tira a meta. v2.3: a mesma regra vale sempre, também no "Importar o Excel" (grava em modo ajustar; linha sem caixas mantém; 0 tira; o que não está no arquivo não muda).
    O banco na nuvem é a fonte das metas (decisão do Eric, 20/11). Jeitos de lançar:
    0. planilha de preenchimento (v2, pedido do Eric em 24/11): baixar o .xlsx com uma aba por vendedor (cliente na coluna A,
       produtos da B em diante, metas em caixas), preencher e subir de novo; a tela confere o aceite (soma da equipe > 1,1 × objetivo);
@@ -126,7 +126,8 @@
       }
       var cli = o[ix.c] || "", prod = o[ix.p] || "", cx = Number(String(o[ix.x] || "").replace(",", "."));
       if (!cli && !prod) continue;
-      if (!(cx > 0)) continue;
+      var cxTxt = String(o[ix.x] || "").trim(); if (cxTxt === "") continue; /* v2.3: em branco = mantém a meta atual */
+      if (!(cx >= 0)) continue;
       linhas.push({ vendedor: ix.v >= 0 ? (o[ix.v] || "").slice(0, 60) : "", cliente: cli.slice(0, 40), produto: prod.slice(0, 20), caixas: Math.round(cx * 1000) / 1000 });
       if (linhas.length > MAX_LINHAS) throw new Error("O arquivo tem mais de " + MAX_LINHAS + " linhas de meta.");
     }
@@ -442,7 +443,7 @@
     // 2. importar
     var arq = el("input", { type: "file", accept: ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "aria-label": "Arquivo Excel" });
     var resImp = el("div"), previa = el("div"), lido = null;
-    var btImp = el("button", { type: "button", text: "Importar e substituir as metas do mês", disabled: true });
+    var btImp = el("button", { type: "button", text: "Importar e gravar as metas do arquivo", disabled: true });
     arq.addEventListener("change", function () {
       lido = null; btImp.disabled = true; resImp.replaceChildren(); previa.replaceChildren();
       var f = arq.files && arq.files[0]; if (!f) return;
@@ -457,14 +458,14 @@
         Object.keys(porVend).sort().forEach(function (v) { tb.append(el("tr", null, el("td", { text: v }), el("td", { class: "num", text: n0(porVend[v]) }))); });
         previa.replaceChildren(el("p", null, el("b", { text: f.name + " · aba " + x.aba + ": " + n0(x.linhas.length) + " linhas, " + n0(cx) + " caixas." })),
           el("div", { class: "rolar" }, el("table", null, el("thead", null, el("tr", null, el("th", { text: "Vendedor" }), el("th", { class: "num", text: "Caixas" }))), tb)),
-          el("p", { class: "dica", text: "Ao importar, as metas de " + nomeMes(estado.comp) + " desta representada são substituídas pelas do arquivo." }));
+          el("p", { class: "dica", text: "Ao importar, cada cliente × produto do arquivo recebe as caixas do arquivo em " + nomeMes(estado.comp) + "; 0 tira a meta; caixas em branco e o que não está no arquivo ficam como estão." }));
         btImp.disabled = false;
       }).catch(function (e) { previa.replaceChildren(el("p", { class: "msg erro", text: e && e.message ? e.message : "Não foi possível ler o arquivo." })); });
     });
     btImp.addEventListener("click", function () {
       if (!lido) return;
       btImp.disabled = true; resImp.replaceChildren(el("p", { class: "dica", text: "Gravando " + n0(lido.linhas.length) + " linhas…" }));
-      chamar("api-relatorios", "metas-salvar", { competencia: estado.comp, representada_id: selRep.value, modo: "substituir", itens: lido.linhas }).then(function (r) {
+      chamar("api-relatorios", "metas-salvar", { competencia: estado.comp, representada_id: selRep.value, modo: "ajustar", itens: lido.linhas }).then(function (r) {
         btImp.disabled = false;
         if (r._http === 401) return semSessao();
         resultado(resImp, r);
