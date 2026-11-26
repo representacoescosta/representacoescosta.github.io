@@ -1,4 +1,4 @@
-/* Sistema RC — Lançar metas (26/11/2026, v2.1; v2 de 24/11, v1 de 20/11/2026). v2.1: some o "null" na prévia da planilha.
+/* Sistema RC — Lançar metas (26/11/2026, v2.2; v2 de 24/11, v1 de 20/11/2026). v2.1: some o "null" na prévia da planilha. v2.2 (regra do Eric, 26/11): na planilha, célula em branco mantém a meta atual; 0 tira a meta.
    O banco na nuvem é a fonte das metas (decisão do Eric, 20/11). Jeitos de lançar:
    0. planilha de preenchimento (v2, pedido do Eric em 24/11): baixar o .xlsx com uma aba por vendedor (cliente na coluna A,
       produtos da B em diante, metas em caixas), preencher e subir de novo; a tela confere o aceite (soma da equipe > 1,1 × objetivo);
@@ -216,7 +216,7 @@
     var o = m.objetivo || {}, t = m.totais || {};
     var leia = [["Planilha de metas " + nomeRep + " · " + nomeMes(comp)],
       ["Uma aba por vendedor. Coluna A: cliente. Da coluna B em diante: produtos. Preencha as metas em caixas nas células amarelas."],
-      ["Célula vazia ou 0 = sem meta para aquele cliente e produto. Não mude os nomes das abas, a coluna A nem a linha 1."],
+      ["Célula em branco = fica a meta atual. Para tirar a meta de um item naquela loja, escreva 0. Não mude os nomes das abas, a coluna A nem a linha 1."],
       ["Depois de preencher, salve como Excel (.xlsx) e suba em Lançar metas › Planilha de preenchimento."],
       ["As metas são aceitas quando a soma da equipe passa de " + n0(o.fator) + " × o objetivo " + nomeRep + ", em PF e em PV (kg)."],
       [""], ["Objetivo " + nomeRep + " (kg)", "PF", "PV"],
@@ -271,7 +271,7 @@
             var mc = /^\s*(RC\d{3,10})\b/i.exec(l[0] || "");
             if (!mc) { if (cols.some(function (c) { return (l[c.j] || "") !== ""; })) erros.push("Linha " + (i + 1) + ": cliente sem código RC na coluna A."); continue; }
             cols.forEach(function (c) {
-              var s = String(l[c.j] || "").replace(",", "."), q = s === "" ? 0 : Number(s);
+              var s = String(l[c.j] || "").trim().replace(",", "."); if (s === "") return; var q = Number(s); /* v2.2: em branco = mantém a meta atual */
               if (!(q >= 0 && q <= 100000)) { erros.push("Linha " + (i + 1) + ", " + colNome(c.j) + ": valor inválido (" + s.slice(0, 12) + ")."); return; }
               itens.push({ cliente: mc[1].toUpperCase(), produto: c.prod, caixas: Math.round(q * 1000) / 1000 });
             });
@@ -371,21 +371,21 @@
         lidaPl = x;
         var tb = el("tbody"), erros = [];
         x.abas.forEach(function (a) {
-          tb.append(el("tr", null, el("td", { text: a.aba }), el("td", { class: "num", text: n0(a.caixas) })));
+          tb.append(el("tr", null, el("td", { text: a.aba + (a.itens.length ? " (" + a.itens.length + " célula(s) preenchidas)" : " (em branco: nada muda)") }), el("td", { class: "num", text: n0(a.caixas) })));
           a.erros.forEach(function (e) { erros.push(a.aba + " · " + e); });
         });
         previaPl.replaceChildren(el("p", null, el("b", { text: f.name + ": " + x.abas.length + " aba(s) de vendedor, " + n0(x.caixas) + " caixas." })),
           el("div", { class: "rolar" }, el("table", null, el("thead", null, el("tr", null, el("th", { text: "Aba" }), el("th", { class: "num", text: "Caixas" }))), tb)),
           erros.length ? el("div", null, el("p", { class: "msg erro", text: erros.length + " célula(s) com problema; corrija e escolha o arquivo de novo." }),
             el("ul", null, erros.slice(0, 50).map(function (e) { return el("li", { text: e }); }))) : "",
-          el("p", { class: "dica", text: "Ao gravar, cada cliente × produto das abas recebe o valor da planilha (vazio = sem meta), em " + nomeMes(estado.comp) + ". Clientes que não estão na planilha não mudam." }));
+          el("p", { class: "dica", text: "Ao gravar, cada cliente × produto com número na planilha recebe esse valor em " + nomeMes(estado.comp) + "; 0 tira a meta; célula em branco e clientes fora da planilha ficam como estão." }));
         btSubir.disabled = erros.length > 0;
       }).catch(function (e) { previaPl.replaceChildren(el("p", { class: "msg erro", text: e && e.message ? e.message : "Não foi possível ler o arquivo." })); });
     });
     btSubir.addEventListener("click", function () {
       if (!lidaPl) return;
       btSubir.disabled = true; arqPl.disabled = true;
-      var abas = lidaPl.abas.slice(), feitos = [], i = 0;
+      var abas = lidaPl.abas.filter(function (x) { return x.itens.length > 0; }), feitos = [], i = 0; /* aba toda em branco = nada muda */
       function proxima() {
         if (i >= abas.length) {
           arqPl.disabled = false;
