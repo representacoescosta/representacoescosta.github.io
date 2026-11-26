@@ -17,6 +17,9 @@
   var API = "https://fufwenjnnsvxdgnenpch.supabase.co/functions/v1/api-pedidos/";
   var CHAVE_SESSAO = "rc_sessao";
   var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  // Motivos de cancelamento (iguais a rc.motivo_cancelamento, migração 56).
+  var MOTIVOS = [["erro_digitacao", "Erro de digitação"], ["nota_refaturada", "Nota será refaturada"], ["problema_qualidade", "Problema de qualidade"],
+    ["problema_logistica", "Problema de logística"], ["pedido_cortado", "Pedido cortado"], ["outros", "Outros"]];
   var RECARREGA = { conflito: 1, nao_encontrado: 1, ja_cancelado: 1, ja_faturado: 1, pedido_da_planilha: 1, sugestao_da_planilha: 1, ja_resolvido: 1 };
   var STATUS = { sugestao: "Sugestão", sugestao_confirmada: "Sugestão confirmada", novo: "Novo", aguardando_preco: "Aguardando preço",
     enviado: "Enviado à representada", faturado: "Faturado", cancelado: "Cancelado" };
@@ -183,17 +186,22 @@
     var botao = el("button", { type: "button", class: "lixo", text: "Cancelar pedido…", onclick: function () { abrirConfirmacao(); } });
     function abrirConfirmacao() {
       aberto = pid; botao.hidden = true;
-      var motivo = el("textarea", { rows: "3", maxlength: "500", required: true, "aria-label": "Motivo do cancelamento", placeholder: "Ex.: cliente desistiu; pedido duplicado; erro no produto" });
-      var conta = el("span", { class: "dica", text: "0/500" });
-      motivo.addEventListener("input", function () { conta.textContent = motivo.value.length + "/500"; });
+      // v3 (regra do Eric, 23/11/2026; migração 56): motivo da lista; em "Outros" a descrição é obrigatória.
+      var tipo = el("select", { required: true, "aria-label": "Motivo do cancelamento" }, el("option", { value: "", text: "Escolha o motivo…" }));
+      MOTIVOS.forEach(function (x) { tipo.append(el("option", { value: x[0], text: x[1] })); });
+      var motivo = el("textarea", { rows: "3", maxlength: "440", "aria-label": "Descrição do motivo", placeholder: "Descreva o motivo (obrigatório em Outros)" });
+      var conta = el("span", { class: "dica", text: "0/440" });
+      motivo.addEventListener("input", function () { conta.textContent = motivo.value.length + "/440"; });
       var confirmar = el("button", { type: "button", class: "perigo", text: "Confirmar cancelamento de " + txt(p.pedido) });
       var desistir = el("button", { type: "button", class: "sec", text: "Não cancelar", onclick: fechar });
       confirmar.addEventListener("click", function () {
-        var t = motivo.value.trim();
-        if (t.length < 5) { motivo.setAttribute("aria-invalid", "true"); motivo.focus(); return msg(m, "Escreva o motivo do cancelamento (pelo menos 5 letras).", "erro"); }
+        var t = motivo.value.trim(), cod = tipo.value;
+        if (!cod) { tipo.setAttribute("aria-invalid", "true"); tipo.focus(); return msg(m, "Escolha o motivo do cancelamento.", "erro"); }
+        tipo.removeAttribute("aria-invalid");
+        if (cod === "outros" && t.length < 5) { motivo.setAttribute("aria-invalid", "true"); motivo.focus(); return msg(m, "Em \"Outros\", descreva o motivo (pelo menos 5 letras).", "erro"); }
         motivo.removeAttribute("aria-invalid");
         confirmar.disabled = true; desistir.disabled = true; msg(m, "Cancelando…");
-        chamar("cancelar-pedido", { pedido_id: pid, versao: p.versao, motivo: t }).then(function (r) {
+        chamar("cancelar-pedido", { pedido_id: pid, versao: p.versao, motivo_codigo: cod, detalhe: t }).then(function (r) {
           confirmar.disabled = false; desistir.disabled = false;
           if (r._http === 401) return semSessao();
           if (r.ok) return carregar([txt(p.pedido) + " cancelado. O motivo ficou registrado no histórico do pedido." + (r.planilha ? " A planilha é atualizada na próxima sincronia (até 30 minutos)." : ""), "ok"]);
@@ -204,9 +212,10 @@
       area.replaceChildren(el("div", { class: "confirma" },
         el("p", null, el("b", { text: "Cancelar " + txt(p.pedido) + " de " + txt(p.cliente) + "?" })),
         el("p", { class: "dica", text: "O pedido passa para \"cancelado\" e não segue para a representada. Fica registrado quem cancelou, quando e o motivo." }),
-        el("label", null, el("span", { class: "obrig", text: "Motivo" }), motivo), conta,
+        el("label", null, el("span", { class: "obrig", text: "Motivo" }), tipo),
+        el("label", null, el("span", { text: "Descrição (obrigatória em Outros)" }), motivo), conta,
         el("div", { class: "acoes" }, confirmar, desistir)));
-      motivo.focus();
+      tipo.focus();
     }
     function fechar() { aberto = null; area.replaceChildren(); botao.hidden = false; msg(m, ""); }
     var cartao = el("div", { class: "item", style: "grid-template-columns:1fr auto" },
